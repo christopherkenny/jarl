@@ -100,6 +100,7 @@ website:
       - rules/equals_na.md
       - rules/equals_nan.md
       - rules/equals_null.md
+      - rules/explicit_packages.md
       - rules/expect_length.md
       - rules/expect_match.md
       - rules/expect_named.md

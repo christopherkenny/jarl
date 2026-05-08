@@ -4,12 +4,16 @@ use crate::package::{
     summarize_package_info,
 };
 use crate::roxygen::{extract_roxygen_examples, remap_roxygen_fix, remap_roxygen_range};
+use crate::rule_set::Rule;
 use crate::suppression::SuppressionManager;
 use crate::vcs::check_version_control;
 use air_fs::relativize_path;
 use air_r_parser::RParserOptions;
-use air_r_syntax::{RExpressionList, RSyntaxNode};
+use air_r_syntax::{
+    AnyRExpression, RBinaryExpressionFields, RExpressionList, RSyntaxKind, RSyntaxNode,
+};
 use anyhow::{Context, Result};
+use biome_rowan::{AstNode, TextSize};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fs;
@@ -243,6 +247,9 @@ pub fn get_checks(
     // We run checks at expression-level. This gathers all violations, no matter
     // whether they are suppressed or not. They are filtered out in the next
     // step (this is also Ruff's approach).
+    if checker.is_rule_enabled(Rule::ExplicitPackages) {
+        checker.local_bindings = collect_local_bindings(expressions);
+    }
     for expr in expressions {
         check_expression(&expr, &mut checker)?;
     }
@@ -323,6 +330,156 @@ pub fn get_checks(
     Ok(diagnostics)
 }
 
+/// Collect names assigned in the file so package-origin lints can avoid local
+/// helpers.
+fn collect_local_bindings(expressions: &RExpressionList) -> HashMap<String, Vec<TextSize>> {
+    let mut bindings = HashMap::new();
+    for expr in expressions {
+        collect_local_bindings_expr(&expr, &mut bindings);
+    }
+    bindings
+}
+
+fn collect_local_bindings_expr(
+    expression: &AnyRExpression,
+    bindings: &mut HashMap<String, Vec<TextSize>>,
+) {
+    match expression {
+        AnyRExpression::RBinaryExpression(binary) => {
+            let RBinaryExpressionFields { left, operator, right } = binary.as_fields();
+            let (Ok(left), Ok(operator), Ok(right)) = (left, operator, right) else {
+                return;
+            };
+
+            match operator.kind() {
+                RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL => {
+                    collect_assigned_name(&left, bindings);
+                }
+                RSyntaxKind::ASSIGN_RIGHT => {
+                    collect_assigned_name(&right, bindings);
+                }
+                _ => {}
+            }
+
+            collect_local_bindings_expr(&left, bindings);
+            collect_local_bindings_expr(&right, bindings);
+        }
+        AnyRExpression::RBracedExpressions(braced) => {
+            for expr in braced.expressions() {
+                collect_local_bindings_expr(&expr, bindings);
+            }
+        }
+        AnyRExpression::RCall(call) => {
+            if let Ok(args) = call.arguments() {
+                for arg in args.items().into_iter().flatten() {
+                    if let Some(expr) = arg.value() {
+                        collect_local_bindings_expr(&expr, bindings);
+                    }
+                }
+            }
+        }
+        AnyRExpression::RForStatement(for_stmt) => {
+            if let Ok(variable) = for_stmt.variable()
+                && let Ok(token) = variable.name_token()
+            {
+                bindings
+                    .entry(token.token_text_trimmed().text().to_string())
+                    .or_default()
+                    .push(variable.syntax().text_trimmed_range().start());
+            }
+            if let Ok(sequence) = for_stmt.sequence() {
+                collect_local_bindings_expr(&sequence, bindings);
+            }
+            if let Ok(body) = for_stmt.body() {
+                collect_local_bindings_expr(&body, bindings);
+            }
+        }
+        AnyRExpression::RFunctionDefinition(function) => {
+            if let Ok(params) = function.parameters() {
+                for param in params.items().into_iter().flatten() {
+                    if let Some(default) = param.default()
+                        && let Ok(value) = default.value()
+                    {
+                        collect_local_bindings_expr(&value, bindings);
+                    }
+                }
+            }
+            if let Ok(body) = function.body() {
+                collect_local_bindings_expr(&body, bindings);
+            }
+        }
+        AnyRExpression::RIfStatement(if_stmt) => {
+            if let Ok(condition) = if_stmt.condition() {
+                collect_local_bindings_expr(&condition, bindings);
+            }
+            if let Ok(consequence) = if_stmt.consequence() {
+                collect_local_bindings_expr(&consequence, bindings);
+            }
+            if let Some(else_clause) = if_stmt.else_clause()
+                && let Ok(alternative) = else_clause.alternative()
+            {
+                collect_local_bindings_expr(&alternative, bindings);
+            }
+        }
+        AnyRExpression::RParenthesizedExpression(paren) => {
+            if let Ok(body) = paren.body() {
+                collect_local_bindings_expr(&body, bindings);
+            }
+        }
+        AnyRExpression::RRepeatStatement(repeat) => {
+            if let Ok(body) = repeat.body() {
+                collect_local_bindings_expr(&body, bindings);
+            }
+        }
+        AnyRExpression::RSubset(subset) => {
+            if let Ok(args) = subset.arguments() {
+                for arg in args.items().into_iter().flatten() {
+                    if let Some(expr) = arg.value() {
+                        collect_local_bindings_expr(&expr, bindings);
+                    }
+                }
+            }
+        }
+        AnyRExpression::RSubset2(subset) => {
+            if let Ok(args) = subset.arguments() {
+                for arg in args.items().into_iter().flatten() {
+                    if let Some(expr) = arg.value() {
+                        collect_local_bindings_expr(&expr, bindings);
+                    }
+                }
+            }
+        }
+        AnyRExpression::RUnaryExpression(unary) => {
+            if let Ok(argument) = unary.argument() {
+                collect_local_bindings_expr(&argument, bindings);
+            }
+        }
+        AnyRExpression::RWhileStatement(while_stmt) => {
+            if let Ok(condition) = while_stmt.condition() {
+                collect_local_bindings_expr(&condition, bindings);
+            }
+            if let Ok(body) = while_stmt.body() {
+                collect_local_bindings_expr(&body, bindings);
+            }
+        }
+        _ => {}
+    }
+}
+
+fn collect_assigned_name(
+    expression: &AnyRExpression,
+    bindings: &mut HashMap<String, Vec<TextSize>>,
+) {
+    if let Some(identifier) = expression.as_r_identifier()
+        && let Ok(token) = identifier.name_token()
+    {
+        bindings
+            .entry(token.token_text_trimmed().text().to_string())
+            .or_default()
+            .push(identifier.syntax().text_trimmed_range().start());
+    }
+}
+
 /// Populate package context on the checker from pre-computed data.
 ///
 /// For files inside an R package, copies the pre-computed `PackageContext`
@@ -340,6 +497,7 @@ fn get_package_info(
             if let Some(ctx) = pkg_contexts.get(package_root) {
                 checker.loaded_packages = ctx.loaded_packages.clone();
                 checker.import_from = ctx.import_from.clone();
+                checker.blanket_imports = ctx.blanket_imports.clone();
                 checker.namespace_exports = ctx.namespace_exports.clone();
             }
         }

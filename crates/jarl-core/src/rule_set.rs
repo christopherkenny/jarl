@@ -363,6 +363,13 @@ declare_rules! {
         fix: Safe,
         min_r_version: None,
     },
+    ExplicitPackages => {
+        name: "explicit_packages",
+        categories: [Read],
+        default: Disabled,
+        fix: Safe,
+        min_r_version: None,
+    },
     FixedRegex => {
         name: "fixed_regex",
         categories: [Perf],

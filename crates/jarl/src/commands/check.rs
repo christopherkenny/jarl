@@ -1,7 +1,10 @@
 use air_workspace::resolve::PathResolver;
+use jarl_core::checker::DEFAULT_PACKAGES;
 use jarl_core::discovery::{discover_r_file_paths, discover_settings, validate_exclude_patterns};
 use jarl_core::library_paths::is_r_available;
-use jarl_core::package_cache::{PackageCache, any_file_references_packages, find_r_project_root};
+use jarl_core::package_cache::{
+    PackageCache, any_file_references_packages, collect_explicit_package_names, find_r_project_root,
+};
 use jarl_core::rule_set::Rule;
 use jarl_core::{
     config::ArgsConfig,
@@ -120,8 +123,11 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
 
     // Track whether we've already verified R is available (avoid repeated checks).
     let mut r_available_checked = false;
-    // Cache of project root - PackageCache to avoid duplicate Rscript calls.
-    let mut root_caches: HashMap<Option<PathBuf>, Option<Arc<PackageCache>>> = HashMap::new();
+    // Cache of (project root, package set) - PackageCache to avoid duplicate
+    // Rscript calls while still supporting dynamic package sets from
+    // `explicit_packages`.
+    let mut root_caches: HashMap<(Option<PathBuf>, Vec<String>), Option<Arc<PackageCache>>> =
+        HashMap::new();
 
     let mut file_results = Vec::new();
     for (dir_key, group_paths) in groups {
@@ -132,12 +138,47 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
 
         let config = build_config(&check_config, settings, group_paths.clone())?;
 
-        if !config.rules_to_apply.has_package_specific_rules() {
+        let has_explicit_packages = config.rules_to_apply.contains(&Rule::ExplicitPackages);
+        let has_static_package_rules = config.rules_to_apply.has_package_specific_rules();
+
+        if !has_static_package_rules && !has_explicit_packages {
             file_results.extend(jarl_core::check::check(config));
             continue;
         }
 
-        // Package-specific rules are enabled — need per-project-root caches.
+        let mut r_pkg_names: Vec<String> = config
+            .rules_to_apply
+            .pkg_names_from_category()
+            .into_iter()
+            .map(str::to_string)
+            .collect();
+
+        if has_explicit_packages {
+            for pkg in DEFAULT_PACKAGES {
+                if !r_pkg_names.iter().any(|name| name == pkg) {
+                    r_pkg_names.push((*pkg).to_string());
+                }
+            }
+            for pkg in collect_explicit_package_names(&group_paths) {
+                if !r_pkg_names.contains(&pkg) {
+                    r_pkg_names.push(pkg);
+                }
+            }
+        }
+
+        // If the only package-backed rule is `explicit_packages` and no
+        // packages are statically visible, it cannot produce meaningful
+        // diagnostics.
+        if r_pkg_names.is_empty() {
+            let mut config = build_config(&check_config, settings, group_paths)?;
+            config.rules_to_apply = config
+                .rules_to_apply
+                .filter(|r| *r != Rule::ExplicitPackages);
+            file_results.extend(jarl_core::check::check(config));
+            continue;
+        }
+
+        // Package-backed rules are enabled — need per-project-root caches.
         if !r_available_checked {
             if !is_r_available() {
                 let pkg_categories: Vec<_> = config
@@ -159,14 +200,17 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
             r_available_checked = true;
         }
 
-        let r_pkg_names = config.rules_to_apply.pkg_names_from_category();
         drop(config);
+        let r_pkg_name_refs: Vec<&str> = r_pkg_names.iter().map(String::as_str).collect();
 
         // Skip the expensive Rscript call if no file in this group actually
         // references any of the target packages. In that case, strip the
         // package-specific rules since they can't produce meaningful results
         // without a PackageCache.
-        if !any_file_references_packages(&group_paths, &r_pkg_names) {
+        if has_static_package_rules
+            && !has_explicit_packages
+            && !any_file_references_packages(&group_paths, &r_pkg_name_refs)
+        {
             let mut config = build_config(&check_config, settings, group_paths)?;
             config.rules_to_apply = config
                 .rules_to_apply
@@ -185,11 +229,13 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
 
         for (root, sub_paths) in by_root {
             let mut config = build_config(&check_config, settings, sub_paths)?;
+            let mut cache_pkg_key = r_pkg_names.clone();
+            cache_pkg_key.sort();
 
             let cache = root_caches
-                .entry(root.clone())
+                .entry((root.clone(), cache_pkg_key))
                 .or_insert_with(|| {
-                    PackageCache::from_rscript(&r_pkg_names, root.as_deref()).map(Arc::new)
+                    PackageCache::from_rscript(&r_pkg_name_refs, root.as_deref()).map(Arc::new)
                 })
                 .clone();
 

@@ -37,6 +37,7 @@ pub enum FileScope {
 pub struct PackageContext {
     pub namespace_exports: HashSet<String>,
     pub import_from: HashMap<String, String>,
+    pub blanket_imports: Vec<String>,
     pub loaded_packages: Vec<String>,
     /// Raw NAMESPACE content, retained so `compute_unused_from_shared()` can
     /// call `parse_namespace_exports()` with the full `all_names` list.
@@ -174,6 +175,7 @@ pub fn summarize_package_info(
     for root in &package_roots {
         let mut packages: Vec<String> = DEFAULT_PACKAGES.iter().map(|s| s.to_string()).collect();
         let mut import_from = HashMap::new();
+        let mut blanket_imports = Vec::new();
         let mut namespace_exports = HashSet::new();
         let mut namespace_content = None;
 
@@ -191,7 +193,10 @@ pub fn summarize_package_info(
             import_from = imports.import_from;
             for pkg in imports.blanket_imports {
                 if !packages.contains(&pkg) {
-                    packages.push(pkg);
+                    packages.push(pkg.clone());
+                }
+                if !blanket_imports.contains(&pkg) {
+                    blanket_imports.push(pkg);
                 }
             }
             namespace_exports = parse_namespace_exports(&ns, &[]);
@@ -203,6 +208,7 @@ pub fn summarize_package_info(
             PackageContext {
                 namespace_exports,
                 import_from,
+                blanket_imports,
                 loaded_packages: packages,
                 namespace_content,
             },

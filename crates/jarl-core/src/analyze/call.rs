@@ -10,6 +10,7 @@ use crate::lints::base::class_equals::class_equals::class_identical;
 use crate::lints::base::condition_call::condition_call::condition_call;
 use crate::lints::base::download_file::download_file::download_file;
 use crate::lints::base::duplicated_arguments::duplicated_arguments::duplicated_arguments;
+use crate::lints::base::explicit_packages::explicit_packages::explicit_packages;
 use crate::lints::base::fixed_regex::fixed_regex::fixed_regex;
 use crate::lints::base::glue::glue::glue;
 use crate::lints::base::grepv::grepv::grepv;
@@ -66,6 +67,9 @@ pub fn call(r_expr: &RCall, checker: &mut Checker) -> anyhow::Result<()> {
     }
     if checker.is_rule_enabled(Rule::DuplicatedArguments) {
         checker.report_diagnostic(duplicated_arguments(r_expr, checker)?);
+    }
+    if checker.is_rule_enabled(Rule::ExplicitPackages) {
+        checker.report_diagnostic(explicit_packages(r_expr, checker)?);
     }
     if checker.is_rule_enabled(Rule::FixedRegex) {
         checker.report_diagnostic(fixed_regex(r_expr)?);

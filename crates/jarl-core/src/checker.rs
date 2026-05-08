@@ -3,6 +3,7 @@ use crate::package_cache::PackageCache;
 use crate::rule_options::ResolvedRuleOptions;
 use crate::rule_set::{Rule, RuleSet};
 use crate::suppression::SuppressionManager;
+use biome_rowan::TextSize;
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
@@ -70,10 +71,15 @@ pub struct Checker {
     // Direct function→package mappings from `importFrom()` in the package's
     // own NAMESPACE. Takes priority over export-list scanning.
     pub import_from: HashMap<String, String>,
+    // Packages imported wholesale via `import()` in the package's own
+    // NAMESPACE.
+    pub blanket_imports: Vec<String>,
     // Names exported by the package's NAMESPACE file (`export()`,
     // `S3method()`, etc.).  Used to suppress false positives in rules
     // like `unused_object` — exported names are "used" by definition.
     pub namespace_exports: HashSet<String>,
+    // Names assigned in the current file. Used by package-resolution rules.
+    pub local_bindings: HashMap<String, Vec<TextSize>>,
 }
 
 impl Checker {
@@ -90,7 +96,9 @@ impl Checker {
             loaded_packages: Vec::new(),
             package_cache: None,
             import_from: HashMap::new(),
+            blanket_imports: Vec::new(),
             namespace_exports: HashSet::new(),
+            local_bindings: HashMap::new(),
         }
     }
 
@@ -126,7 +134,15 @@ impl Checker {
             if let Some(info) = cache.get(pkg_name)
                 && info.exports.contains(fn_name)
             {
-                candidates.push(pkg_name.clone());
+                if let Some(imported_from) = info.imports.get(fn_name) {
+                    for provider in imported_from {
+                        if !candidates.contains(provider) {
+                            candidates.push(provider.clone());
+                        }
+                    }
+                } else if !candidates.contains(pkg_name) {
+                    candidates.push(pkg_name.clone());
+                }
             }
         }
 

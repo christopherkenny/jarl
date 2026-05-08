@@ -14,12 +14,15 @@ use std::sync::{Arc, RwLock};
 use std::time::SystemTime;
 
 use crate::checker::PackageOrigin;
+use crate::description::Description;
 
 /// Information about an installed R package.
 #[derive(Debug, Clone)]
 pub struct PackageInfo {
     /// Exported function/object names.
     pub exports: HashSet<String>,
+    /// Imported names and the packages they come from.
+    pub imports: HashMap<String, HashSet<String>>,
     /// Package version from DESCRIPTION (e.g., `(1, 2, 0)`).
     pub version: Option<(u32, u32, u32)>,
     /// Install path on disk (e.g. `/home/user/R/x86_64-pc-linux-gnu-library/4.5`).
@@ -73,11 +76,45 @@ impl PackageCache {
         for (pkg_name, exports) in entries {
             let info = PackageInfo {
                 exports: exports.iter().map(|s| s.to_string()).collect(),
+                imports: HashMap::new(),
                 version: None,
                 install_path: None,
             };
             cache.insert(pkg_name.to_string(), Some(info));
         }
+        Self::from_cache_map(cache)
+    }
+
+    /// Build an in-memory cache from package exports plus imported names.
+    ///
+    /// Useful for testing re-export behavior without requiring R.
+    #[cfg(test)]
+    pub fn from_exports_and_imports(
+        entries: &[(&str, &[&str])],
+        imports: &[(&str, &str, &str)],
+    ) -> Self {
+        let mut cache = HashMap::new();
+        for (pkg_name, exports) in entries {
+            let info = PackageInfo {
+                exports: exports.iter().map(|s| s.to_string()).collect(),
+                imports: HashMap::new(),
+                version: None,
+                install_path: None,
+            };
+            cache.insert(pkg_name.to_string(), Some(info));
+        }
+        for (pkg_name, imported_name, provider) in imports {
+            if let Some(Some(info)) = cache.get_mut(*pkg_name) {
+                info.imports
+                    .entry((*imported_name).to_string())
+                    .or_default()
+                    .insert((*provider).to_string());
+            }
+        }
+        Self::from_cache_map(cache)
+    }
+
+    fn from_cache_map(cache: HashMap<String, Option<PackageInfo>>) -> Self {
         Self {
             cache: RwLock::new(cache),
             mtimes: RwLock::new(HashMap::new()),
@@ -324,6 +361,74 @@ pub fn any_file_references_packages(paths: &[PathBuf], packages: &[&str]) -> boo
     false
 }
 
+/// Collect package names that `explicit_packages` can use for resolution.
+///
+/// For R packages, this includes DESCRIPTION `Depends`/`Imports` plus blanket
+/// `import()` directives from NAMESPACE. For scripts, this includes static
+/// `library()` / `require()` calls found with a fast text scan.
+pub fn collect_explicit_package_names(paths: &[PathBuf]) -> Vec<String> {
+    let library_re = regex::Regex::new(
+        r#"(?m)\b(?:library|require)\s*\(\s*(?:"([^"]+)"|'([^']+)'|([A-Za-z][A-Za-z0-9.]*))"#,
+    )
+    .expect("library regex should compile");
+
+    let mut packages = Vec::new();
+    let mut checked_descriptions: HashSet<PathBuf> = HashSet::new();
+    let mut checked_namespaces: HashSet<PathBuf> = HashSet::new();
+
+    for path in paths {
+        if let Some(parent) = path.parent()
+            && parent.file_name().is_some_and(|n| n == "R")
+            && let Some(pkg_root) = parent.parent()
+        {
+            let desc_path = pkg_root.join("DESCRIPTION");
+            if checked_descriptions.insert(desc_path.clone())
+                && let Ok(desc_content) = std::fs::read_to_string(&desc_path)
+            {
+                extend_unique(
+                    &mut packages,
+                    Description::get_package_deps(&desc_content, &["Depends", "Imports"]),
+                );
+            }
+
+            let ns_path = pkg_root.join("NAMESPACE");
+            if checked_namespaces.insert(ns_path.clone())
+                && let Ok(ns_content) = std::fs::read_to_string(&ns_path)
+            {
+                extend_unique(
+                    &mut packages,
+                    crate::namespace::parse_namespace_imports(&ns_content).blanket_imports,
+                );
+            }
+        }
+
+        if let Ok(content) = std::fs::read_to_string(path) {
+            for captures in library_re.captures_iter(&content) {
+                let pkg = captures
+                    .get(1)
+                    .or_else(|| captures.get(2))
+                    .or_else(|| captures.get(3))
+                    .map(|m| m.as_str().to_string());
+                if let Some(pkg) = pkg
+                    && !packages.contains(&pkg)
+                {
+                    packages.push(pkg);
+                }
+            }
+        }
+    }
+
+    packages
+}
+
+fn extend_unique(packages: &mut Vec<String>, additions: Vec<String>) {
+    for pkg in additions {
+        if !packages.contains(&pkg) {
+            packages.push(pkg);
+        }
+    }
+}
+
 /// Per-file package context for resolving bare function names to packages.
 ///
 /// Built during the pre-pass from `library()`/`require()` calls found in
@@ -384,22 +489,10 @@ fn run_rscript_for_pkg_info(
     packages: &[&str],
     project_root: Option<&Path>,
 ) -> Option<PackageBatchResult> {
-    let pkg_vec: String = packages
-        .iter()
-        .map(|p| format!("\"{}\"", p.replace('\\', "\\\\").replace('"', "\\\"")))
-        .collect::<Vec<_>>()
-        .join(", ");
+    let pkg_vec = r_package_vector(packages);
 
     let script = format!(
-        r#"for (pkg in c({pkg_vec})) {{
-  tryCatch({{
-    cat(pkg, "\n", sep = "")
-    cat(format(packageVersion(pkg)), "\n", sep = "")
-    cat(dirname(system.file(package = pkg)), "\n", sep = "")
-    cat(paste(getNamespaceExports(pkg), collapse = "\n"), "\n", sep = "")
-    cat("---\n")
-  }}, error = function(e) NULL)
-}}"#
+        r#"for (pkg in c({pkg_vec})) {{ tryCatch({{ ns <- asNamespace(pkg); cat(pkg, "\n", sep = ""); cat(format(packageVersion(pkg)), "\n", sep = ""); cat(dirname(system.file(package = pkg)), "\n", sep = ""); cat("EXPORTS\n"); cat(paste(getNamespaceExports(pkg), collapse = "\n"), "\n", sep = ""); cat("IMPORTS\n"); imports <- getNamespaceInfo(ns, "imports"); for (i in seq_along(imports)) {{ imported_pkg <- names(imports)[i]; imported_names <- names(imports[[i]]); if (length(imported_names)) cat(paste(imported_pkg, imported_names, sep = "::"), sep = "\n") }}; cat("---\n") }}, error = function(e) NULL) }}"#
     );
 
     let mut cmd = Command::new("Rscript");
@@ -421,13 +514,12 @@ fn run_rscript_for_pkg_info(
     let mut cache_map: HashMap<String, Option<PackageInfo>> = HashMap::new();
     let mut mtime_map: HashMap<String, Option<SystemTime>> = HashMap::new();
 
-    for block in stdout.split("---\n") {
-        let block = block.trim();
+    for block in split_rscript_package_blocks(&stdout) {
         if block.is_empty() {
             continue;
         }
 
-        let mut lines = block.lines();
+        let mut lines = block.iter().map(|line| line.as_str());
         let Some(name) = lines.next() else { continue };
         let name = name.trim().to_string();
         let Some(version_str) = lines.next().map(str::trim) else {
@@ -436,10 +528,33 @@ fn run_rscript_for_pkg_info(
         let Some(install_path_str) = lines.next().map(str::trim) else {
             continue;
         };
-        let exports: HashSet<String> = lines
-            .filter(|l| !l.is_empty())
-            .map(|l| l.to_string())
-            .collect();
+        let remaining: Vec<&str> = lines.collect();
+        let exports_start = remaining.iter().position(|line| *line == "EXPORTS");
+        let imports_start = remaining.iter().position(|line| *line == "IMPORTS");
+
+        let exports = match (exports_start, imports_start) {
+            (Some(exports_start), Some(imports_start)) if exports_start < imports_start => {
+                remaining[exports_start + 1..imports_start]
+                    .iter()
+                    .filter(|l| !l.is_empty())
+                    .map(|l| (*l).to_string())
+                    .collect()
+            }
+            _ => HashSet::new(),
+        };
+
+        let mut imports: HashMap<String, HashSet<String>> = HashMap::new();
+        if let Some(imports_start) = imports_start {
+            for import in &remaining[imports_start + 1..] {
+                let Some((pkg, name)) = import.split_once("::") else {
+                    continue;
+                };
+                imports
+                    .entry(name.to_string())
+                    .or_default()
+                    .insert(pkg.to_string());
+            }
+        }
 
         let version = parse_package_version(version_str);
         let install_path = PathBuf::from(install_path_str);
@@ -453,11 +568,45 @@ fn run_rscript_for_pkg_info(
             .and_then(|m| m.modified().ok());
         mtime_map.insert(name.clone(), desc_mtime);
 
-        let info = PackageInfo { exports, version, install_path: Some(install_path) };
+        let info = PackageInfo {
+            exports,
+            imports,
+            version,
+            install_path: Some(install_path),
+        };
         cache_map.insert(name, Some(info));
     }
 
     Some(PackageBatchResult { cache: cache_map, mtimes: mtime_map })
+}
+
+fn split_rscript_package_blocks(stdout: &str) -> Vec<Vec<String>> {
+    let mut blocks = Vec::new();
+    let mut current = Vec::new();
+
+    for line in stdout.lines() {
+        if line.trim() == "---" {
+            if !current.is_empty() {
+                blocks.push(std::mem::take(&mut current));
+            }
+        } else if !line.trim().is_empty() {
+            current.push(line.trim_end_matches('\r').to_string());
+        }
+    }
+
+    if !current.is_empty() {
+        blocks.push(current);
+    }
+
+    blocks
+}
+
+fn r_package_vector(packages: &[&str]) -> String {
+    packages
+        .iter()
+        .map(|p| format!("\"{}\"", p.replace('\\', "\\\\").replace('"', "\\\"")))
+        .collect::<Vec<_>>()
+        .join(", ")
 }
 
 /// Parse a version string like "1.2.3" into a tuple.

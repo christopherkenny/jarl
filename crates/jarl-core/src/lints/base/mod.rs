@@ -15,6 +15,7 @@ pub(crate) mod empty_file;
 pub(crate) mod equals_na;
 pub(crate) mod equals_nan;
 pub(crate) mod equals_null;
+pub(crate) mod explicit_packages;
 pub(crate) mod fixed_regex;
 pub(crate) mod for_loop_dup_index;
 pub(crate) mod for_loop_index;
