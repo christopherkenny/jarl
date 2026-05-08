@@ -135,10 +135,13 @@ impl Checker {
                 && info.exports.contains(fn_name)
             {
                 if let Some(imported_from) = info.imports.get(fn_name) {
-                    for provider in imported_from {
-                        if !candidates.contains(provider) {
-                            candidates.push(provider.clone());
-                        }
+                    let loaded_provider = imported_from
+                        .iter()
+                        .find(|provider| self.loaded_packages.contains(provider));
+
+                    let candidate = loaded_provider.unwrap_or(pkg_name);
+                    if !candidates.contains(candidate) {
+                        candidates.push(candidate.clone());
                     }
                 } else if !candidates.contains(pkg_name) {
                     candidates.push(pkg_name.clone());

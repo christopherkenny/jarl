@@ -17,8 +17,9 @@ calls in scripts, and `DESCRIPTION` / `NAMESPACE` metadata in R packages.
 Calls to default R packages are left unchanged.
 
 If a function is exported by more than one loaded package, the rule reports the
-ambiguity without applying a fix. Re-exports are resolved to the package that
-provides the imported name when that metadata is available.
+ambiguity without applying a fix. Re-exports are resolved to the provider package
+when that provider is also part of the file's package context; otherwise, they
+are resolved to the loaded package that re-exports the function.
 
 ## Example
 
@@ -38,4 +39,3 @@ library(tibble)
 tibble::tibble(x = 1)
 dplyr::mutate(x, y = 1)
 ```
-

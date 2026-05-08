@@ -267,6 +267,34 @@ mod tests {
     }
 
     #[test]
+    fn test_reexport_uses_loaded_package_when_provider_is_not_loaded() {
+        let cache = Arc::new(
+            crate::package_cache::PackageCache::from_exports_and_imports(
+                &[("dplyr", &["tibble"]), ("tibble", &["tibble"])],
+                &[("dplyr", "tibble", "tibble")],
+            ),
+        );
+
+        assert_snapshot!(
+            get_fixed_text_with_cache(
+                vec!["library(dplyr)\ntibble(x = 1)"],
+                "explicit_packages",
+                &cache
+            ),
+            @r"
+        OLD:
+        ====
+        library(dplyr)
+        tibble(x = 1)
+        NEW:
+        ====
+        library(dplyr)
+        dplyr::tibble(x = 1)
+        "
+        );
+    }
+
+    #[test]
     fn test_no_lint_for_namespace_imports() {
         let parsed = air_r_parser::parse("tibble(x = 1)", RParserOptions::default());
         let mut checker = checker_for_direct_test(&parsed.syntax());
