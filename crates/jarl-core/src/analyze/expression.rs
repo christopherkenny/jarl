@@ -1,7 +1,8 @@
 use air_r_syntax::{
-    AnyRExpression, RBinaryExpressionFields, RForStatementFields, RIfStatementFields,
-    RWhileStatementFields,
+    AnyRExpression, AnyRParameterName, RBinaryExpressionFields, RForStatementFields,
+    RIfStatementFields, RSyntaxKind, RWhileStatementFields,
 };
+use std::collections::HashSet;
 
 use crate::analyze;
 use crate::checker::Checker;
@@ -29,9 +30,27 @@ pub(crate) fn check_expression(
         }
         AnyRExpression::RBinaryExpression(children) => {
             analyze::binary_expression::binary_expression(children, checker)?;
-            let RBinaryExpressionFields { left, right, .. } = children.as_fields();
-            check_expression(&left?, checker)?;
-            check_expression(&right?, checker)?;
+            let RBinaryExpressionFields { left, operator, right } = children.as_fields();
+            let left = left?;
+            let operator = operator?;
+            let right = right?;
+
+            check_expression(&left, checker)?;
+            check_expression(&right, checker)?;
+
+            match operator.kind() {
+                RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL => {
+                    if let Some(name) = assigned_name(&left) {
+                        checker.add_active_local_binding(name);
+                    }
+                }
+                RSyntaxKind::ASSIGN_RIGHT => {
+                    if let Some(name) = assigned_name(&right) {
+                        checker.add_active_local_binding(name);
+                    }
+                }
+                _ => {}
+            }
         }
         AnyRExpression::RBracedExpressions(children) => {
             for expr in children.expressions() {
@@ -54,23 +73,40 @@ pub(crate) fn check_expression(
         AnyRExpression::RForStatement(children) => {
             analyze::for_loop::for_loop(children, checker)?;
             let RForStatementFields { variable, sequence, body, .. } = children.as_fields();
-            analyze::identifier::identifier(&variable?, checker)?;
+            let variable = variable?;
+            analyze::identifier::identifier(&variable, checker)?;
 
             check_expression(&sequence?, checker)?;
+            if let Ok(token) = variable.name_token() {
+                checker.add_active_local_binding(token.token_text_trimmed().text().to_string());
+            }
             check_expression(&body?, checker)?;
         }
         AnyRExpression::RFunctionDefinition(children) => {
             analyze::function_definition::function_definition(children, checker)?;
             let params = children.parameters()?.items();
+            let mut local_names = HashSet::new();
+            let mut defaults = Vec::new();
             for param in params {
-                let default = param?.default();
+                let param = param?;
+                if let Ok(name) = param.name()
+                    && let Some(name) = parameter_name(&name)
+                {
+                    local_names.insert(name);
+                }
+                let default = param.default();
                 if let Some(default) = default
                     && let Ok(default) = default.value()
                 {
-                    check_expression(&default, checker)?;
+                    defaults.push(default);
                 }
             }
+            checker.enter_local_scope(local_names);
+            for default in defaults {
+                check_expression(&default, checker)?;
+            }
             check_expression(&children.body()?, checker)?;
+            checker.exit_local_scope();
         }
         AnyRExpression::RIdentifier(x) => {
             analyze::identifier::identifier(x, checker)?;
@@ -130,4 +166,16 @@ pub(crate) fn check_expression(
     }
 
     Ok(())
+}
+
+fn assigned_name(expression: &AnyRExpression) -> Option<String> {
+    let identifier = expression.as_r_identifier()?;
+    let token = identifier.name_token().ok()?;
+    Some(token.token_text_trimmed().text().to_string())
+}
+
+fn parameter_name(name: &AnyRParameterName) -> Option<String> {
+    let identifier = name.as_r_identifier()?;
+    let token = identifier.name_token().ok()?;
+    Some(token.token_text_trimmed().text().to_string())
 }

@@ -154,26 +154,38 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
             .collect();
 
         if has_explicit_packages {
+            let explicit_pkg_names = collect_explicit_package_names(&group_paths);
+
             for pkg in DEFAULT_PACKAGES {
                 if !r_pkg_names.iter().any(|name| name == pkg) {
                     r_pkg_names.push((*pkg).to_string());
                 }
             }
-            for pkg in collect_explicit_package_names(&group_paths) {
+            for pkg in explicit_pkg_names {
                 if !r_pkg_names.contains(&pkg) {
                     r_pkg_names.push(pkg);
                 }
             }
         }
 
-        // If the only package-backed rule is `explicit_packages` and no
-        // packages are statically visible, it cannot produce meaningful
-        // diagnostics.
-        if r_pkg_names.is_empty() {
+        // If no packages are statically visible, package-backed rules cannot
+        // produce meaningful diagnostics. For `explicit_packages`, default
+        // packages alone don't count because that rule ignores them.
+        let has_explicit_visible_packages = r_pkg_names
+            .iter()
+            .any(|pkg| !DEFAULT_PACKAGES.contains(&pkg.as_str()));
+
+        if r_pkg_names.is_empty() || (has_explicit_packages && !has_explicit_visible_packages) {
             let mut config = build_config(&check_config, settings, group_paths)?;
-            config.rules_to_apply = config
-                .rules_to_apply
-                .filter(|r| *r != Rule::ExplicitPackages);
+            config.rules_to_apply = if has_explicit_packages {
+                config
+                    .rules_to_apply
+                    .filter(|r| *r != Rule::ExplicitPackages)
+            } else {
+                config
+                    .rules_to_apply
+                    .filter(|r| !r.categories().iter().any(|c| c.is_package_specific()))
+            };
             file_results.extend(jarl_core::check::check(config));
             continue;
         }
@@ -181,20 +193,23 @@ pub fn check(args: CheckCommand) -> Result<ExitStatus> {
         // Package-backed rules are enabled — need per-project-root caches.
         if !r_available_checked {
             if !is_r_available() {
-                let pkg_categories: Vec<_> = config
+                let mut package_backed_rules: Vec<String> = config
                     .rules_to_apply
                     .package_specific_categories()
                     .into_iter()
-                    .map(|c| c.as_str())
+                    .map(|c| c.as_str().to_string())
                     .collect();
+                if has_explicit_packages {
+                    package_backed_rules.push("explicit_packages".to_string());
+                }
                 return Err(anyhow::anyhow!(
-                    "Package-specific rules are enabled ({}) but R is not available.\n\n\
-                     These rules require R and installed packages to resolve function origins.\n\n\
+                    "Rules that need package metadata are enabled ({}) but R is not available.\n\n\
+                     These rules require R and installed packages to resolve package exports.\n\n\
                      If running in CI with `setup-jarl`, uncomment (or add yourself) the R setup steps in your workflow:\n\n\
                      \x20 - uses: r-lib/actions/setup-r@v2\n\
                      \x20 - uses: r-lib/actions/setup-r-dependencies@v2\n\n\
                      You can also disable these rules instead.",
-                    pkg_categories.join(", "),
+                    package_backed_rules.join(", "),
                 ));
             }
             r_available_checked = true;

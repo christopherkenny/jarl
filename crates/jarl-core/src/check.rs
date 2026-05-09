@@ -404,9 +404,6 @@ fn collect_local_bindings_expr(
                     }
                 }
             }
-            if let Ok(body) = function.body() {
-                collect_local_bindings_expr(&body, bindings);
-            }
         }
         AnyRExpression::RIfStatement(if_stmt) => {
             if let Ok(condition) = if_stmt.condition() {

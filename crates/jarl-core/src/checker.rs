@@ -80,6 +80,8 @@ pub struct Checker {
     pub namespace_exports: HashSet<String>,
     // Names assigned in the current file. Used by package-resolution rules.
     pub local_bindings: HashMap<String, Vec<TextSize>>,
+    // Lexically active local names while walking nested function bodies.
+    pub active_local_bindings: Vec<HashSet<String>>,
 }
 
 impl Checker {
@@ -99,6 +101,7 @@ impl Checker {
             blanket_imports: Vec::new(),
             namespace_exports: HashSet::new(),
             local_bindings: HashMap::new(),
+            active_local_bindings: Vec::new(),
         }
     }
 
@@ -162,5 +165,26 @@ impl Checker {
             .as_ref()?
             .get(pkg_name)
             .and_then(|info| info.version)
+    }
+
+    pub(crate) fn enter_local_scope(&mut self, names: HashSet<String>) {
+        self.active_local_bindings.push(names);
+    }
+
+    pub(crate) fn exit_local_scope(&mut self) {
+        self.active_local_bindings.pop();
+    }
+
+    pub(crate) fn add_active_local_binding(&mut self, name: String) {
+        if let Some(scope) = self.active_local_bindings.last_mut() {
+            scope.insert(name);
+        }
+    }
+
+    pub(crate) fn has_active_local_binding(&self, name: &str) -> bool {
+        self.active_local_bindings
+            .iter()
+            .rev()
+            .any(|scope| scope.contains(name))
     }
 }
