@@ -6,6 +6,7 @@
 
 * New rules:
 
+  * `assignment_on_if`
   * `condition_call` (#503)
   * `condition_message` (#545)
   * `empty_file` (#477, @JosephBARBIERDARNAL)

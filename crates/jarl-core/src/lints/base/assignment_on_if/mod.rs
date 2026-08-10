@@ -44,7 +44,7 @@ mod tests {
     }
 
     #[test]
-    fn test_lint_assignment_on_if_with_other_left_assignments() {
+    fn test_lint_assignment_on_if_with_other_assignments() {
         assert_snapshot!(snapshot_lint("x = if (condition) value else other"), @"
         warning: assignment_on_if
          --> <test>:1:1
@@ -61,6 +61,26 @@ mod tests {
           |
         1 | x <<- if (condition) value else other
           | ------------------------------------- Avoid assigning the result of an `if()` expression.
+          |
+          = help: Use `ifelse()` for simple values, or move the assignment into each branch of the `if()` expression.
+        Found 1 error.
+        ");
+        assert_snapshot!(snapshot_lint("(if (condition) value else other) -> x"), @"
+        warning: assignment_on_if
+         --> <test>:1:1
+          |
+        1 | (if (condition) value else other) -> x
+          | -------------------------------------- Avoid assigning the result of an `if()` expression.
+          |
+          = help: Use `ifelse()` for simple values, or move the assignment into each branch of the `if()` expression.
+        Found 1 error.
+        ");
+        assert_snapshot!(snapshot_lint("(if (condition) value else other) ->> x"), @"
+        warning: assignment_on_if
+         --> <test>:1:1
+          |
+        1 | (if (condition) value else other) ->> x
+          | --------------------------------------- Avoid assigning the result of an `if()` expression.
           |
           = help: Use `ifelse()` for simple values, or move the assignment into each branch of the `if()` expression.
         Found 1 error.

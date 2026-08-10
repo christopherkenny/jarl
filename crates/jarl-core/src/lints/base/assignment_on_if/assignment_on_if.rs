@@ -51,15 +51,19 @@ pub fn assignment_on_if(ast: &RIfStatement) -> anyhow::Result<Option<Diagnostic>
         };
 
         if let Some(assignment) = RBinaryExpression::cast_ref(&parent) {
-            let right = assignment.right()?;
             let operator = assignment.operator()?;
 
-            if right.syntax() == &node
-                && matches!(
-                    operator.kind(),
-                    RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN
-                )
-            {
+            let value_is_if = match operator.kind() {
+                RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => {
+                    assignment.right()?.syntax() == &node
+                }
+                RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT => {
+                    assignment.left()?.syntax() == &node
+                }
+                _ => false,
+            };
+
+            if value_is_if {
                 return Ok(Some(diagnostic(assignment.syntax().text_trimmed_range())));
             }
 

@@ -17,14 +17,6 @@ each branch makes the side effect explicit.
 
 ```r
 x <- if (condition) value else other
-fn(arg = if (condition) value else other)
-```
-
-For simple values, especially with a vectorized condition, use `ifelse()`:
-
-```r
-x <- ifelse(condition, value, other)
-fn(arg = ifelse(condition, value, other))
 ```
 
 For scalar conditions with side effects or more complex branch logic, move
@@ -35,5 +27,27 @@ if (condition) {
   x <- value
 } else {
   x <- other
+}
+```
+
+This also applies to assignment within function calls:
+
+```
+out <- fn(arg = if (condition) value else other)
+```
+
+For simple values, use `ifelse()`:
+
+```r
+out <- fn(arg = ifelse(condition, value, other))
+```
+
+For more complex values, split the function:
+
+```r
+if (condition) {
+  out <- fn(arg = value)
+} else {
+  out <- fn(arg = other)
 }
 ```
