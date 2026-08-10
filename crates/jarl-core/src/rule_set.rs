@@ -271,6 +271,13 @@ declare_rules! {
         fix: Safe,
         min_r_version: None,
     },
+    AssignmentOnIf => {
+        name: "assignment_on_if",
+        categories: [Read],
+        default: Disabled,
+        fix: None,
+        min_r_version: None,
+    },
     #[deprecated(version = "0.5.0", replacement = "undesirable_function")]
     Browser => {
         name: "browser",

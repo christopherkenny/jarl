@@ -2,12 +2,16 @@ use crate::checker::Checker;
 use crate::rule_set::Rule;
 use air_r_syntax::RIfStatement;
 
+use crate::lints::base::assignment_on_if::assignment_on_if::assignment_on_if;
 use crate::lints::base::coalesce::coalesce::coalesce;
 use crate::lints::base::if_always_true::if_always_true::if_always_true;
 use crate::lints::base::if_not_else::if_not_else::if_not_else;
 use crate::lints::base::unnecessary_nesting::unnecessary_nesting::unnecessary_nesting;
 
 pub fn if_(r_expr: &RIfStatement, checker: &mut Checker) -> anyhow::Result<()> {
+    if checker.is_rule_enabled(Rule::AssignmentOnIf) {
+        checker.report_diagnostic(assignment_on_if(r_expr)?);
+    }
     if checker.is_rule_enabled(Rule::Coalesce) {
         checker.report_diagnostic(coalesce(r_expr)?);
     }
