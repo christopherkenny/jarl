@@ -64,13 +64,14 @@ mod tests {
     }
 
     #[test]
-    fn test_assignment_on_if_no_else_supports_assignment_forms() {
+    fn test_assignment_on_if_no_else_supports_assignment_forms_and_parentheses() {
         for code in [
             "value = if (a) 1",
             "value <<- if (a) 1",
             "(if (a) 1) -> value",
             "(if (a) 1) ->> value",
             "value <- (if (a) 1)",
+            "value <- if (a) 1 else (if (b) 2)",
         ] {
             assert_eq!(
                 check_code(code, "assignment_on_if_no_else", None).len(),

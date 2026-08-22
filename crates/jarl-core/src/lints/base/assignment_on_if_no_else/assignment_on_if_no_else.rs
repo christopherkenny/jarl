@@ -62,14 +62,7 @@ impl Violation for AssignmentOnIfNoElse {
 }
 
 pub fn assignment_on_if_no_else(ast: &RBinaryExpression) -> anyhow::Result<Option<Diagnostic>> {
-    let operator = ast.operator()?;
-    let value = match operator.kind() {
-        RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => ast.right()?,
-        RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT => ast.left()?,
-        _ => return Ok(None),
-    };
-
-    let Some(if_statement) = as_if_statement(value)? else {
+    let Some(if_statement) = assigned_if_statement(ast)? else {
         return Ok(None);
     };
 
@@ -85,7 +78,22 @@ pub fn assignment_on_if_no_else(ast: &RBinaryExpression) -> anyhow::Result<Optio
     )))
 }
 
-fn as_if_statement(expression: AnyRExpression) -> anyhow::Result<Option<RIfStatement>> {
+pub(in crate::lints::base) fn assigned_if_statement(
+    ast: &RBinaryExpression,
+) -> anyhow::Result<Option<RIfStatement>> {
+    let operator = ast.operator()?;
+    let value = match operator.kind() {
+        RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => ast.right()?,
+        RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT => ast.left()?,
+        _ => return Ok(None),
+    };
+
+    as_if_statement(value)
+}
+
+pub(in crate::lints::base) fn as_if_statement(
+    expression: AnyRExpression,
+) -> anyhow::Result<Option<RIfStatement>> {
     match expression {
         AnyRExpression::RIfStatement(if_statement) => Ok(Some(if_statement)),
         AnyRExpression::RParenthesizedExpression(parenthesized) => {
@@ -95,15 +103,17 @@ fn as_if_statement(expression: AnyRExpression) -> anyhow::Result<Option<RIfState
     }
 }
 
-fn has_no_final_else(if_statement: &RIfStatement) -> anyhow::Result<bool> {
+pub(in crate::lints::base) fn has_no_final_else(
+    if_statement: &RIfStatement,
+) -> anyhow::Result<bool> {
     let Some(else_clause) = if_statement.else_clause() else {
         return Ok(true);
     };
 
     let alternative = else_clause.alternative()?;
-    let Some(next_if) = alternative.as_r_if_statement() else {
+    let Some(next_if) = as_if_statement(alternative)? else {
         return Ok(false);
     };
 
-    has_no_final_else(next_if)
+    has_no_final_else(&next_if)
 }

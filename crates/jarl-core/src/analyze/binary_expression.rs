@@ -4,6 +4,7 @@ use air_r_syntax::RBinaryExpression;
 
 use crate::lints::base::any_is_na::any_is_na::any_is_na_2;
 use crate::lints::base::assignment::assignment::assignment;
+use crate::lints::base::assignment_on_if::assignment_on_if::assignment_on_if;
 use crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else;
 use crate::lints::base::class_equals::class_equals::class_equals;
 use crate::lints::base::empty_assignment::empty_assignment::empty_assignment;
@@ -31,7 +32,9 @@ pub fn binary_expression(r_expr: &RBinaryExpression, checker: &mut Checker) -> a
             checker.rule_options.assignment.operator,
         )?);
     }
-    if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse) {
+    if checker.is_rule_enabled(Rule::AssignmentOnIf) {
+        checker.report_diagnostic(assignment_on_if(r_expr)?);
+    } else if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse) {
         checker.report_diagnostic(assignment_on_if_no_else(r_expr)?);
     }
     if checker.is_rule_enabled(Rule::ClassEquals) {
