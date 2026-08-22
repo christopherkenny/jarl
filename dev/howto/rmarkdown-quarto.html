@@ -324,8 +324,15 @@ ul.task-list li input[type="checkbox"] {
 <div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
 <!-- sidebar -->
 <!-- margin-sidebar -->
-    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar zindex-bottom">
-        
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#suppression-comments" id="toc-suppression-comments" class="nav-link active" data-scroll-target="#suppression-comments">Suppression comments</a></li>
+  <li><a href="#keeping-or-ignoring-r-markdown-and-quarto-files" id="toc-keeping-or-ignoring-r-markdown-and-quarto-files" class="nav-link" data-scroll-target="#keeping-or-ignoring-r-markdown-and-quarto-files">Keeping or ignoring R Markdown and Quarto files</a></li>
+  </ul>
+<div class="toc-actions"><ul><li><a href="https://github.com/etiennebacher/jarl/blob/main/docs/howto/rmarkdown-quarto.md" class="toc-action"><i class="bi bi-github"></i>View source</a></li><li><a href="https://github.com/etiennebacher/jarl/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></nav>
     </div>
 <!-- main -->
 <main class="content" id="quarto-document-content">
@@ -355,7 +362,12 @@ ul.task-list li input[type="checkbox"] {
 <li>inline R code isn’t analyzed, only code chunks;</li>
 <li>features from the editor integration, such as highlighting diagnostics, are only available when the file is open in source mode, not in visual mode.</li>
 </ul>
+<section id="suppression-comments" class="level2">
+<h2 class="anchored" data-anchor-id="suppression-comments">Suppression comments</h2>
 <p>Suppression comments such as <code># jarl-ignore</code> are supported in R code chunks. In Quarto and R Markdown files, you can also use the comment <code>#| jarl-ignore-chunk</code> to ignore specific rules on entire chunks. Moreover, the comment <code># jarl-ignore-file</code> must be located in the first R code chunk, before any R code. See <a href="../howto/suppression-comments.html" target="_blank">Suppression comments</a> for more details.</p>
+</section>
+<section id="keeping-or-ignoring-r-markdown-and-quarto-files" class="level2">
+<h2 class="anchored" data-anchor-id="keeping-or-ignoring-r-markdown-and-quarto-files">Keeping or ignoring R Markdown and Quarto files</h2>
 <p>By default, Jarl checks R code chunks in R Markdown and Quarto documents. To select or ignore particular file extensions, you can use glob patterns in the command line or in <code>jarl.toml</code>:</p>
 <ul>
 <li><p>in the command line:</p>
@@ -376,6 +388,7 @@ include = ["**/*.{Rmd,rmd,qmd}"]</code></pre></li>
 </ul>
 
 
+</section>
 
 </main> <!-- /main -->
 <script id="quarto-html-after-body" type="application/javascript">
@@ -783,4 +796,4 @@ include = ["**/*.{Rmd,rmd,qmd}"]</code></pre></li>
 
 
 
-<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions"><ul><li><a href="https://github.com/etiennebacher/jarl/blob/main/docs/howto/rmarkdown-quarto.md" class="toc-action"><i class="bi bi-github"></i>View source</a></li><li><a href="https://github.com/etiennebacher/jarl/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
+<footer class="footer"><div class="nav-footer"><div class="nav-footer-center"><div class="toc-actions d-sm-block d-md-none"><ul><li><a href="https://github.com/etiennebacher/jarl/blob/main/docs/howto/rmarkdown-quarto.md" class="toc-action"><i class="bi bi-github"></i>View source</a></li><li><a href="https://github.com/etiennebacher/jarl/issues/new" class="toc-action"><i class="bi empty"></i>Report an issue</a></li></ul></div></div></div></footer></body></html>
