@@ -39,6 +39,7 @@ mod tests {
         expect_no_lint("x |> f()", "undesirable_operator", None);
         expect_no_lint("x %>% f()", "undesirable_operator", None);
         expect_no_lint("utils::f()", "undesirable_operator", None);
+        expect_no_lint("`+`(x, y)", "undesirable_operator", None);
         expect_no_lint("# x <<- 1", "undesirable_operator", None);
         expect_no_lint("x <- 'x <<- 1'", "undesirable_operator", None);
     }
