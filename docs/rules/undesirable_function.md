@@ -22,9 +22,16 @@ By default, only `browser` is flagged. You can customise the list in
 # Replace the default list entirely:
 functions = ["browser", "debug"]
 
-# Or add to the defaults:
-extend-functions = ["debug"]
+# Or add to the defaults, with optional suggestions:
+extend-functions = [
+  { setwd = 'Use here::here().' },
+  "sprintf",
+  { transmute = 'Use mutate(.keep = "none").' },
+]
 ```
+
+Use a string with just the function name for the default diagnostic. Use an
+inline table to attach custom suggestion text to the default message.
 
 ## Example
 

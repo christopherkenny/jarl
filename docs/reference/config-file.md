@@ -455,6 +455,28 @@ Default: `skipped-functions = []`
 skipped-functions = ["foo"]
 ```
 
+### `undesirable_function`
+
+Use `functions` to replace the default list of undesirable functions, or
+`extend-functions` to add to it. Specifying both is an error. The default list
+contains `browser`.
+
+Entries can be function-name strings or inline tables mapping function names to
+custom suggestion text. A mapped function is included in the selected list,
+and its suggestion is shown alongside the default diagnostic body.
+
+```toml
+[lint]
+...
+
+[lint.undesirable_function]
+extend-functions = [
+  { setwd = 'Use here::here().' },
+  "sprintf",
+  { transmute = 'Use mutate(.keep = "none").' },
+]
+```
+
 ### `unreachable_code`
 
 Use `stopping-functions` to fully replace the default list of functions that are

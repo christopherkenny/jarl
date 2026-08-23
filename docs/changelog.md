@@ -83,6 +83,9 @@
   to list functions whose arguments are allowed to contain the `T` and `F`
   symbols (#542).
 
+* `undesirable_function` now accepts inline tables in `functions` and
+  `extend-functions` to attach custom suggestions to undesirable functions.
+
 
 ### Other improvements
 

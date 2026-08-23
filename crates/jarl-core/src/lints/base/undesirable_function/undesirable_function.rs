@@ -6,6 +6,7 @@ use biome_rowan::AstNode;
 
 pub struct UndesirableFunction {
     pub fn_name: String,
+    pub message: Option<String>,
 }
 
 /// Version added: 0.5.0
@@ -30,8 +31,12 @@ pub struct UndesirableFunction {
 /// # Replace the default list entirely:
 /// functions = ["browser", "debug"]
 ///
-/// # Or add to the defaults:
-/// extend-functions = ["debug"]
+/// # Or add to the defaults, with optional suggestions:
+/// extend-functions = [
+///   { setwd = 'Use here::here().' },
+///   "sprintf",
+///   { transmute = 'Use mutate(.keep = "none").' },
+/// ]
 /// ```
 ///
 /// ## Example
@@ -49,6 +54,9 @@ impl Violation for UndesirableFunction {
     }
     fn body(&self) -> String {
         format!("`{}()` is listed as an undesirable function.", self.fn_name)
+    }
+    fn suggestion(&self) -> Option<String> {
+        self.message.clone()
     }
 }
 
@@ -68,7 +76,15 @@ pub fn undesirable_function(
 
     let range = ast.syntax().text_trimmed_range();
     let diagnostic = Diagnostic::new(
-        UndesirableFunction { fn_name: fn_name.to_string() },
+        UndesirableFunction {
+            fn_name: fn_name.to_string(),
+            message: checker
+                .rule_options
+                .undesirable_function
+                .messages
+                .get(fn_name)
+                .cloned(),
+        },
         range,
         Fix::empty(),
     );

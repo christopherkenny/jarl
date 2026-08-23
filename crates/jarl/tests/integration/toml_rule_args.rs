@@ -683,6 +683,252 @@ quote = "foo"
     Ok(())
 }
 
+// undesirable_function ----------------------------------------
+
+#[test]
+fn test_undesirable_function_both_functions_and_extend_is_error() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint.undesirable_function]
+functions = ["setwd"]
+extend-functions = ["sprintf"]
+"#,
+        ),
+        ("test.R", "setwd(\"data\")"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 255
+    ----- stdout -----
+
+    ----- stderr -----
+    jarl failed
+      Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
+    Cannot specify both `functions` and `extend-functions` in `[lint.undesirable_function]`.
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_undesirable_function_unknown_field_is_error() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint.undesirable_function]
+unknown-option = ["setwd"]
+"#,
+        ),
+        ("test.R", "setwd(\"data\")"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 255
+    ----- stdout -----
+
+    ----- stderr -----
+    jarl failed
+      Cause: Failed to parse [TEMP_DIR]/jarl.toml:
+    TOML parse error at line 3, column 1
+      |
+    3 | unknown-option = ["setwd"]
+      | ^^^^^^^^^^^^^^
+    unknown field `unknown-option`, expected `functions` or `extend-functions`
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_undesirable_function_invalid_entry_is_error() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint.undesirable_function]
+extend-functions = [123]
+"#,
+        ),
+        ("test.R", "setwd(\"data\")"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 255
+    ----- stdout -----
+
+    ----- stderr -----
+    jarl failed
+      Cause: Failed to parse [TEMP_DIR]/jarl.toml:
+    TOML parse error at line 3, column 20
+      |
+    3 | extend-functions = [123]
+      |                    ^^^^^
+    data did not match any variant of untagged enum UndesirableFunctionEntry
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_undesirable_function_custom_messages_change_reported_diagnostics() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint]
+select = ["undesirable_function"]
+
+[lint.undesirable_function]
+extend-functions = [
+  { setwd = 'Use here::here().' },
+  "sprintf",
+  { transmute = 'Use mutate(.keep = "none").' },
+]
+"#,
+        ),
+        (
+            "test.R",
+            "setwd(\"data\")\nsprintf()\ntransmute()\nbrowser()\n",
+        ),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    warning: undesirable_function
+     --> test.R:1:1
+      |
+    1 | setwd("data")
+      | ------------- `setwd()` is listed as an undesirable function.
+      |
+      = help: Use here::here().
+
+    warning: undesirable_function
+     --> test.R:2:1
+      |
+    2 | sprintf()
+      | --------- `sprintf()` is listed as an undesirable function.
+      |
+
+    warning: undesirable_function
+     --> test.R:3:1
+      |
+    3 | transmute()
+      | ----------- `transmute()` is listed as an undesirable function.
+      |
+      = help: Use mutate(.keep = "none").
+
+    warning: undesirable_function
+     --> test.R:4:1
+      |
+    4 | browser()
+      | --------- `browser()` is listed as an undesirable function.
+      |
+
+
+    ── Summary ──────────────────────────────────────
+    Found 4 errors.
+
+    ----- stderr -----
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_undesirable_function_string_entries_remain_supported() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint]
+select = ["undesirable_function"]
+
+[lint.undesirable_function]
+functions = ["setwd"]
+"#,
+        ),
+        ("test.R", "setwd()\nbrowser()\n"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    warning: undesirable_function
+     --> test.R:1:1
+      |
+    1 | setwd()
+      | ------- `setwd()` is listed as an undesirable function.
+      |
+
+
+    ── Summary ──────────────────────────────────────
+    Found 1 error.
+
+    ----- stderr -----
+    "#
+    );
+
+    Ok(())
+}
+
 // unreachable_code ----------------------------------------
 
 #[test]
