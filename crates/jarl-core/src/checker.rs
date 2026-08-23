@@ -74,6 +74,10 @@ pub struct Checker {
     // `S3method()`, etc.).  Used to suppress false positives in rules
     // like `unused_object` — exported names are "used" by definition.
     pub namespace_exports: HashSet<String>,
+    // Generic names declared by the package's NAMESPACE S3method() entries.
+    // This must stay separate from namespace_exports because ordinary exports
+    // are not evidence that a name is an S3 generic.
+    pub namespace_s3_generics: HashSet<String>,
     // Path of the file being checked. Used by rules that need to resolve
     // paths relative to the current file (e.g. `unused_object` resolving
     // `source("...")` arguments).
@@ -104,6 +108,7 @@ impl Checker {
             package_cache: None,
             import_from: HashMap::new(),
             namespace_exports: HashSet::new(),
+            namespace_s3_generics: HashSet::new(),
             file_path: std::path::PathBuf::new(),
             source_index_cache: jarl_semantic::SourceIndexCache::new(),
             unevaluated_ranges: Vec::new(),

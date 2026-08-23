@@ -404,6 +404,27 @@ Default: `skipped-functions = [
 skipped-functions = ["my_function"]
 ```
 
+### `object_name`
+
+This rule checks simple assignment targets against one or more naming styles.
+It is disabled by default. The built-in styles are `symbols`, `CamelCase`,
+`camelCase`, `snake_case`, `SNAKE_CASE`, `dotted.case`, `lowercase`, and
+`UPPERCASE`.
+
+Use `styles` to select built-in styles. Use `regexes` for a table of named
+regular expressions. If `styles` is omitted and `regexes` is non-empty, the
+custom regular expressions replace the default `snake_case` and `symbols`
+styles.
+
+```toml
+[lint]
+extend-select = ["object_name"]
+
+[lint.object_name]
+styles = ["snake_case"]
+regexes = { "ends-in-id" = "_id$" }
+```
+
 ### `pipe_consistency`
 
 This takes a single value (`"|>"` or `"%>%"`) indicating the preferred

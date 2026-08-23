@@ -718,6 +718,52 @@ foo2 <- function(x) x
 }
 
 #[test]
+fn test_object_name_s3_context_survives_roxygen_suppression() -> anyhow::Result<()> {
+    let case = CliTest::package_with_files([
+        ("NAMESPACE", "S3method(custom_generic, foo)\n"),
+        (
+            "R/test.R",
+            "\
+#' Title
+#' @examples
+# jarl-ignore object_name: intentional example
+#' badName <- 1
+#' custom_generic.foo <- function(x) x
+foo <- function() NULL
+",
+        ),
+        (
+            "jarl.toml",
+            "\
+[lint]
+select = [\"object_name\"]
+",
+        ),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name(),
+        @"
+
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    ── Summary ──────────────────────────────────────
+    All checks passed!
+
+    ----- stderr -----
+    "
+    );
+
+    Ok(())
+}
+
+#[test]
 fn test_unused_suppression_comments() -> anyhow::Result<()> {
     let case = CliTest::package_with_files([(
         "R/test.R",

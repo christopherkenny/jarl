@@ -1,8 +1,8 @@
 //! Lazy cache of installed R package metadata.
 //!
-//! Uses a single `Rscript` call to batch-query exports, versions, and install
-//! paths for the packages we care about. Mtime-based staleness checks avoid
-//! re-running Rscript unless a package actually changed on disk.
+//! Uses a single `Rscript` call to batch-query exports, S3 generics, versions,
+//! and install paths for the packages we care about. Mtime-based staleness
+//! checks avoid re-running Rscript unless a package actually changed on disk.
 //!
 //! Caches are keyed by R project root so that files in an renv project get
 //! exports from that project's library, not the system library.
@@ -20,6 +20,9 @@ use crate::checker::PackageOrigin;
 pub struct PackageInfo {
     /// Exported function/object names.
     pub exports: HashSet<String>,
+    /// Functions known to dispatch through `UseMethod()`, plus generics
+    /// declared by the installed package's NAMESPACE.
+    pub s3_generics: HashSet<String>,
     /// Package version from DESCRIPTION (e.g., `(1, 2, 0)`).
     pub version: Option<(u32, u32, u32)>,
     /// Install path on disk (e.g. `/home/user/R/x86_64-pc-linux-gnu-library/4.5`).
@@ -73,6 +76,7 @@ impl PackageCache {
         for (pkg_name, exports) in entries {
             let info = PackageInfo {
                 exports: exports.iter().map(|s| s.to_string()).collect(),
+                s3_generics: HashSet::new(),
                 version: None,
                 install_path: None,
             };
@@ -370,8 +374,8 @@ struct PackageBatchResult {
     mtimes: HashMap<String, Option<SystemTime>>,
 }
 
-/// Run a single Rscript process that returns exports, version, and install
-/// path for each requested package.
+/// Run a single Rscript process that returns exports, S3 generics, version,
+/// and install path for each requested package.
 ///
 /// When `project_root` is set, the process runs with that directory as its
 /// working directory so that renv auto-activates via `.Rprofile`.
@@ -393,7 +397,24 @@ fn run_rscript_for_pkg_info(
     cat(pkg, "\n", sep = "")
     cat(format(packageVersion(pkg)), "\n", sep = "")
     cat(dirname(system.file(package = pkg)), "\n", sep = "")
-    cat(paste(getNamespaceExports(pkg), collapse = "\n"), "\n", sep = "")
+    ns <- asNamespace(pkg)
+    exports <- getNamespaceExports(pkg)
+    contains_use_method <- function(expr) {{
+      if (is.call(expr) && identical(as.character(expr[[1L]]), "UseMethod")) {{
+        return(TRUE)
+      }}
+      if (is.recursive(expr)) {{
+        return(any(vapply(as.list(expr), contains_use_method, logical(1))))
+      }}
+      FALSE
+    }}
+    s3_generics <- exports[vapply(exports, function(name) {{
+      value <- get(name, envir = ns, inherits = FALSE)
+      is.function(value) && !is.primitive(value) && contains_use_method(body(value))
+    }}, logical(1))]
+    cat(paste(s3_generics, collapse = "\n"), "\n", sep = "")
+    cat("--S3-GENERICS--\n")
+    cat(paste(exports, collapse = "\n"), "\n", sep = "")
     cat("---\n")
   }}, error = function(e) NULL)
 }}"#
@@ -433,13 +454,33 @@ fn run_rscript_for_pkg_info(
         let Some(install_path_str) = lines.next().map(str::trim) else {
             continue;
         };
-        let exports: HashSet<String> = lines
-            .filter(|l| !l.is_empty())
-            .map(|l| l.to_string())
+        let metadata: Vec<&str> = lines.collect();
+        let Some(marker) = metadata.iter().position(|line| *line == "--S3-GENERICS--") else {
+            continue;
+        };
+        let mut s3_generics: HashSet<String> = metadata[..marker]
+            .iter()
+            .filter(|line| !line.is_empty())
+            .map(|line| (*line).to_string())
+            .collect();
+        let exports: HashSet<String> = metadata[marker + 1..]
+            .iter()
+            .filter(|line| !line.is_empty())
+            .map(|line| (*line).to_string())
             .collect();
 
         let version = parse_package_version(version_str);
         let install_path = PathBuf::from(install_path_str);
+
+        // A package can declare S3 methods for a generic it imports rather
+        // than defining itself. Keep those NAMESPACE declarations alongside
+        // the UseMethod() scan above.
+        if let Ok(namespace) = install_path.join(&name).join("NAMESPACE").metadata()
+            && namespace.is_file()
+            && let Ok(content) = std::fs::read_to_string(install_path.join(&name).join("NAMESPACE"))
+        {
+            s3_generics.extend(crate::namespace::parse_namespace_s3_generics(&content));
+        }
 
         // Record DESCRIPTION mtime for staleness detection
         let desc_mtime = install_path
@@ -450,7 +491,12 @@ fn run_rscript_for_pkg_info(
             .and_then(|m| m.modified().ok());
         mtime_map.insert(name.clone(), desc_mtime);
 
-        let info = PackageInfo { exports, version, install_path: Some(install_path) };
+        let info = PackageInfo {
+            exports,
+            s3_generics,
+            version,
+            install_path: Some(install_path),
+        };
         cache_map.insert(name, Some(info));
     }
 
@@ -535,6 +581,7 @@ mod tests {
             let info = cache.get("base").unwrap();
             assert!(info.exports.contains("cat"));
             assert!(info.exports.contains("print"));
+            assert!(info.s3_generics.contains("as.Date"));
             assert!(info.install_path.is_some());
         }
     }

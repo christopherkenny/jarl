@@ -179,6 +179,41 @@ pub fn parse_namespace_exports(content: &str, all_names: &[&str]) -> HashSet<Str
     exports
 }
 
+/// Parse the generic names declared by `S3method()` directives.
+///
+/// This is deliberately separate from [`parse_namespace_exports`]. An
+/// exported object is not necessarily an S3 generic, and using the complete
+/// export set to exempt `generic.class` methods would hide ordinary naming
+/// violations.
+pub fn parse_namespace_s3_generics(content: &str) -> HashSet<String> {
+    let mut generics = HashSet::new();
+
+    for statement in join_continuation_lines(content) {
+        let trimmed = statement.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+
+        let Some(inner) = extract_directive(trimmed, "S3method") else {
+            continue;
+        };
+        let Some(raw_generic) = inner.split(',').next() else {
+            continue;
+        };
+
+        let raw_generic = raw_generic.trim().trim_matches('"').trim_matches('\'');
+        let generic = raw_generic
+            .rsplit_once("::")
+            .map(|(_, name)| name)
+            .unwrap_or(raw_generic);
+        if !generic.is_empty() {
+            generics.insert(generic.to_string());
+        }
+    }
+
+    generics
+}
+
 /// Result of parsing `import()` and `importFrom()` directives from a
 /// package's own NAMESPACE file.
 #[derive(Debug, Default)]
@@ -282,5 +317,19 @@ export(my_fn)
         let ns = "import(dplyr)\nimport(dplyr)\n";
         let result = parse_namespace_imports(ns);
         assert_eq!(result.blanket_imports, vec!["dplyr"]);
+    }
+
+    #[test]
+    fn test_parse_s3_generics_without_ordinary_exports() {
+        let ns = r#"
+export(helper)
+S3method(print, my_class)
+S3method(pkg::format, another_class)
+"#;
+        let result = parse_namespace_s3_generics(ns);
+        assert!(result.contains("print"));
+        assert!(result.contains("format"));
+        assert!(!result.contains("helper"));
+        assert!(!result.contains("print.my_class"));
     }
 }

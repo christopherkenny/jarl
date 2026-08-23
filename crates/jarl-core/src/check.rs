@@ -13,7 +13,7 @@ use air_r_syntax::RSyntaxNode;
 use anyhow::{Context, Result};
 use biome_rowan::{AstNode, AstNodeList, TextRange, TextSize};
 use rayon::prelude::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -25,6 +25,7 @@ pub use crate::checker::Checker;
 use crate::config::Config;
 use crate::diagnostic::*;
 use crate::fix::*;
+use crate::lints::base::object_name::object_name::object_name;
 use crate::rule_set::RuleSet;
 use crate::utils::*;
 
@@ -352,9 +353,12 @@ pub fn get_checks(
             file,
             config,
             contents,
-            &checker.loaded_packages,
-            &checker.source_index_cache,
-            minimum_r_version,
+            RoxygenContext {
+                loaded_packages: &checker.loaded_packages,
+                namespace_s3_generics: &checker.namespace_s3_generics,
+                source_cache: &checker.source_index_cache,
+                minimum_r_version,
+            },
         )?;
         checker.diagnostics.extend(roxygen_diagnostics);
     }
@@ -496,11 +500,35 @@ fn get_package_info(
                 checker.loaded_packages = ctx.loaded_packages.clone();
                 checker.import_from = ctx.import_from.clone();
                 checker.namespace_exports = ctx.namespace_exports.clone();
+                checker.namespace_s3_generics = ctx.namespace_s3_generics.clone();
             }
         }
         _ => checker.loaded_packages = script_packages(semantic),
     }
     checker.package_cache = config.package_cache.clone();
+    add_loaded_package_s3_generics(checker);
+}
+
+/// Add S3 generic metadata for packages visible to this file. Package exports
+/// alone are not enough: an exported function is not necessarily an S3
+/// generic, so only package metadata explicitly identified as generic is
+/// added to the exemption set.
+fn add_loaded_package_s3_generics(checker: &mut Checker) {
+    let Some(cache) = checker.package_cache.as_ref() else {
+        return;
+    };
+
+    let mut packages = checker.loaded_packages.clone();
+    packages.extend(checker.import_from.values().cloned());
+    packages.sort_unstable();
+    packages.dedup();
+
+    let generics: HashSet<String> = packages
+        .iter()
+        .filter_map(|package| cache.get(package))
+        .flat_map(|info| info.s3_generics)
+        .collect();
+    checker.namespace_s3_generics.extend(generics);
 }
 
 /// The packages a file outside an R package can reach: the always-available
@@ -542,14 +570,19 @@ fn top_level_attached_packages(
 /// `loaded_packages` and `source_cache` carry over the documented file's package
 /// context, which the use-def analysis needs: the packages an example can reach
 /// decide whether a bare `glue("{x}")` counts as reading `x`.
+struct RoxygenContext<'a> {
+    loaded_packages: &'a [String],
+    namespace_s3_generics: &'a std::collections::HashSet<String>,
+    source_cache: &'a jarl_semantic::SourceIndexCache,
+    minimum_r_version: Option<(u32, u32, u32)>,
+}
+
 fn get_checks_roxygen(
     syntax: &RSyntaxNode,
     file: &Path,
     config: &Config,
     contents: &str,
-    loaded_packages: &[String],
-    source_cache: &jarl_semantic::SourceIndexCache,
-    minimum_r_version: Option<(u32, u32, u32)>,
+    context: RoxygenContext<'_>,
 ) -> Result<Vec<Diagnostic>> {
     let chunks = extract_roxygen_examples(syntax, contents);
     let mut all_diagnostics: Vec<Diagnostic> = Vec::new();
@@ -566,13 +599,26 @@ fn get_checks_roxygen(
         let suppression = SuppressionManager::from_node(&syntax, &chunk.code);
         let has_suppressions = suppression.has_any_suppressions;
         let mut checker = Checker::new(suppression, config.rule_options.clone());
-        checker.rule_set = effective_rules_for_file(config, file, minimum_r_version);
-        checker.minimum_r_version = minimum_r_version;
+        checker.rule_set = effective_rules_for_file(config, file, context.minimum_r_version);
+        checker.minimum_r_version = context.minimum_r_version;
         checker.file_path = file.to_path_buf();
-        checker.source_index_cache = source_cache.clone();
+        checker.source_index_cache = context.source_cache.clone();
+        checker.namespace_s3_generics = context.namespace_s3_generics.clone();
 
         for expr in expressions {
             check_expression(&expr, &mut checker)?;
+        }
+
+        // Without suppression comments, the normal document-level pass is
+        // intentionally skipped for roxygen examples. Run this file-level
+        // rule directly so object names are still checked in examples.
+        if !has_suppressions && checker.is_rule_enabled(crate::rule_set::Rule::ObjectName) {
+            let diagnostics = object_name(
+                &syntax,
+                &checker.rule_options.object_name,
+                &checker.namespace_s3_generics,
+            );
+            checker.diagnostics.extend(diagnostics);
         }
 
         // Objects created by an example live in the throwaway environment that
@@ -592,7 +638,7 @@ fn get_checks_roxygen(
             );
             // What the example inherits from the package, plus whatever it
             // attaches itself (`library(glue)` on the first line is common).
-            checker.loaded_packages = loaded_packages.to_vec();
+            checker.loaded_packages = context.loaded_packages.to_vec();
             checker
                 .loaded_packages
                 .extend(top_level_attached_packages(&semantic));
@@ -769,6 +815,7 @@ fn get_checks_rmd(
     // script does: the defaults plus what its chunks attach.
     checker.loaded_packages = script_packages(&semantic);
     checker.package_cache = config.package_cache.clone();
+    add_loaded_package_s3_generics(&mut checker);
 
     let expressions = &parsed.tree().expressions();
     for expr in expressions {

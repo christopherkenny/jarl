@@ -16,7 +16,9 @@ use crate::lints::base::duplicated_function_definition::duplicated_function_defi
 use crate::lints::base::unused_function::unused_function::{
     collect_files, compute_unused_from_shared, has_cpp_extension,
 };
-use crate::namespace::{parse_namespace_exports, parse_namespace_imports};
+use crate::namespace::{
+    parse_namespace_exports, parse_namespace_imports, parse_namespace_s3_generics,
+};
 use crate::rule_set::Rule;
 use crate::utils::scan_symbols;
 
@@ -39,6 +41,10 @@ pub enum FileScope {
 #[derive(Clone, Debug, Default)]
 pub struct PackageContext {
     pub namespace_exports: HashSet<String>,
+    /// Generic names declared by `S3method()` in this package's NAMESPACE.
+    /// Kept separate from `namespace_exports`: ordinary exports are not
+    /// evidence that a name is an S3 generic.
+    pub namespace_s3_generics: HashSet<String>,
     pub import_from: HashMap<String, String>,
     pub loaded_packages: Vec<String>,
     /// Raw NAMESPACE content, retained so `compute_unused_from_shared()` can
@@ -241,6 +247,7 @@ pub fn summarize_package_info(
         let mut packages: Vec<String> = DEFAULT_PACKAGES.iter().map(|s| s.to_string()).collect();
         let mut import_from = HashMap::new();
         let mut namespace_exports = HashSet::new();
+        let mut namespace_s3_generics = HashSet::new();
         let mut namespace_content = None;
         let mut minimum_r_version = None;
 
@@ -267,6 +274,7 @@ pub fn summarize_package_info(
                 }
             }
             namespace_exports = parse_namespace_exports(&ns, &[]);
+            namespace_s3_generics = parse_namespace_s3_generics(&ns);
             namespace_content = Some(ns);
         }
 
@@ -274,6 +282,7 @@ pub fn summarize_package_info(
             root.clone(),
             PackageContext {
                 namespace_exports,
+                namespace_s3_generics,
                 import_from,
                 loaded_packages: packages,
                 namespace_content,
@@ -578,4 +587,38 @@ pub(crate) fn scan_extra_package_paths(
             })
         })
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn package_context_separates_s3_generics_from_exports() {
+        let dir = tempfile::tempdir().unwrap();
+        let r_dir = dir.path().join("R");
+        std::fs::create_dir_all(&r_dir).unwrap();
+        std::fs::write(
+            dir.path().join("DESCRIPTION"),
+            "Package: sample\nVersion: 0.1.0\n",
+        )
+        .unwrap();
+        std::fs::write(
+            dir.path().join("NAMESPACE"),
+            "export(helper)\nS3method(print, sample)\n",
+        )
+        .unwrap();
+        let source = r_dir.join("sample.R");
+        std::fs::write(&source, "helper <- function(x) x\n").unwrap();
+
+        let (contexts, file_info) = summarize_package_info(std::slice::from_ref(&source));
+        let context = contexts.get(dir.path()).unwrap();
+        assert!(context.namespace_exports.contains("helper"));
+        assert!(context.namespace_s3_generics.contains("print"));
+        assert!(!context.namespace_s3_generics.contains("helper"));
+        assert!(matches!(
+            file_info.get(&source),
+            Some(FilePackageInfo::InPackage { .. })
+        ));
+    }
 }
