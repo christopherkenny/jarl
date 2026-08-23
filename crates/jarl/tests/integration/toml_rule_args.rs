@@ -513,6 +513,136 @@ unknown-option = ["try"]
     Ok(())
 }
 
+// object_name ----------------------------------------
+
+#[test]
+fn test_object_name_unknown_field_is_error() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint.object_name]
+unknown-option = ["snake_case"]
+"#,
+        ),
+        ("test.R", "badName <- 1"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 255
+    ----- stdout -----
+
+    ----- stderr -----
+    jarl failed
+      Cause: Failed to parse [TEMP_DIR]/jarl.toml:
+    TOML parse error at line 3, column 1
+      |
+    3 | unknown-option = ["snake_case"]
+      | ^^^^^^^^^^^^^^
+    unknown field `unknown-option`, expected `styles` or `regexes`
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_object_name_invalid_style_is_error() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint]
+select = ["object_name"]
+
+[lint.object_name]
+styles = ["not_a_style"]
+"#,
+        ),
+        ("test.R", "badName <- 1"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 255
+    ----- stdout -----
+
+    ----- stderr -----
+    jarl failed
+      Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
+    Invalid style for `[lint.object_name]`: "not_a_style". Expected CamelCase, camelCase, snake_case, SNAKE_CASE, dotted.case, lowercase, UPPERCASE, or symbols.
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_object_name_options_change_reported_names() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint]
+select = ["object_name"]
+
+[lint.object_name]
+styles = ["CamelCase"]
+"#,
+        ),
+        ("test.R", "GoodName <- 1\nbadName <- 1"),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    warning: object_name
+     --> test.R:2:1
+      |
+    2 | badName <- 1
+      | ------- Variable and function name style should match `CamelCase`.
+      |
+
+
+    ── Summary ──────────────────────────────────────
+    Found 1 error.
+
+    ----- stderr -----
+    "#
+    );
+
+    Ok(())
+}
+
 // pipe_consistency ----------------------------------------
 
 #[test]
