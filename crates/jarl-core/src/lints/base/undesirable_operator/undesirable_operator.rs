@@ -32,17 +32,14 @@ pub struct UndesirableOperator {
 /// operators = ["$", "@"]
 /// ```
 ///
-/// To add to the defaults or skip backtick-quoted calls to operators:
+/// To add to the defaults:
 ///
 /// ```toml
 /// [lint.undesirable_operator]
 /// extend-operators = ["$", "%in%"]
-/// call-is-undesirable = false
 /// ```
 ///
-/// Specifying both `operators` and `extend-operators` is an error. Setting
-/// `call-is-undesirable = false` still reports the banned operators when
-/// they are used in ordinary expressions.
+/// Specifying both `operators` and `extend-operators` is an error.
 ///
 /// ## Example
 ///
@@ -105,10 +102,6 @@ pub fn undesirable_operator_call(
     ast: &RCall,
     options: &ResolvedUndesirableOperatorOptions,
 ) -> anyhow::Result<Option<Diagnostic>> {
-    if !options.call_is_undesirable {
-        return Ok(None);
-    }
-
     let function = ast.function()?;
     let function_text = function.syntax().text_trimmed().to_string();
     let Some(operator_text) = function_text

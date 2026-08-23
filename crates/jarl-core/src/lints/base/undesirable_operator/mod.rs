@@ -100,7 +100,6 @@ mod tests {
         let settings = settings_with_options(UndesirableOperatorOptions {
             operators: Some(vec!["$".to_string()]),
             extend_operators: None,
-            call_is_undesirable: None,
         });
 
         expect_no_lint_with_settings("x <<- 1", "undesirable_operator", None, settings.clone());
@@ -124,7 +123,6 @@ mod tests {
         let settings = settings_with_options(UndesirableOperatorOptions {
             operators: None,
             extend_operators: Some(vec!["$".to_string()]),
-            call_is_undesirable: None,
         });
 
         assert_snapshot!(
@@ -151,16 +149,5 @@ mod tests {
         Found 1 error.
         "
         );
-    }
-
-    #[test]
-    fn test_call_is_undesirable() {
-        let settings = settings_with_options(UndesirableOperatorOptions {
-            operators: None,
-            extend_operators: None,
-            call_is_undesirable: Some(false),
-        });
-
-        expect_no_lint_with_settings("`:::`(pkg, fun)", "undesirable_operator", None, settings);
     }
 }

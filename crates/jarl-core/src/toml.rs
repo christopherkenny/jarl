@@ -332,9 +332,6 @@ pub struct LinterTomlOptions {
     /// Use `operators` to fully replace the default list of undesirable operators.
     /// Use `extend-operators` to add to the default list.
     /// Specifying both is an error.
-    /// Set `call-is-undesirable = false` to skip backtick-quoted calls to operators.
-    /// Banned operators are still reported when they are used in ordinary
-    /// expressions.
     #[serde(rename = "undesirable_operator")]
     pub undesirable_operator: Option<UndesirableOperatorOptions>,
 

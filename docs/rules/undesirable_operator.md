@@ -24,17 +24,14 @@ To replace the default list entirely:
 operators = ["$", "@"]
 ```
 
-To add to the defaults or skip backtick-quoted calls to operators:
+To add to the defaults:
 
 ```toml
 [lint.undesirable_operator]
 extend-operators = ["$", "%in%"]
-call-is-undesirable = false
 ```
 
-Specifying both `operators` and `extend-operators` is an error. Setting
-`call-is-undesirable = false` still reports the banned operators when
-they are used in ordinary expressions.
+Specifying both `operators` and `extend-operators` is an error.
 
 ## Example
 
