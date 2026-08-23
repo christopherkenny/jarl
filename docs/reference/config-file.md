@@ -455,6 +455,22 @@ Default: `skipped-functions = []`
 skipped-functions = ["foo"]
 ```
 
+### `undesirable_operator`
+
+By default, only `->>`, `:::`, and `<<-` are flagged. You can customize the
+list in `jarl.toml`. Use `operators` to replace the default list entirely, or
+use `extend-operators` to add to the defaults. Specifying both is an error.
+
+Set `call-is-undesirable = false` to skip backtick-quoted calls to operators.
+Banned operators are still reported when they are used in ordinary
+expressions.
+
+```toml
+[lint.undesirable_operator]
+extend-operators = ["%in%"]
+call-is-undesirable = false
+```
+
 ### `unreachable_code`
 
 Use `stopping-functions` to fully replace the default list of functions that are
