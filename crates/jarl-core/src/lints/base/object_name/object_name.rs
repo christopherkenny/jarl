@@ -6,7 +6,33 @@ use crate::diagnostic::{Diagnostic, Fix, ViolationData};
 use crate::lints::base::object_name::options::ResolvedObjectNameOptions;
 use crate::rule_set::Rule;
 
-/// Check naming styles for assignment targets, function formals, and accessor roots.
+/// Version added: 0.6.0
+///
+/// ## What it does
+///
+/// Checks the names of variables and arguments used in assignments and function
+/// definitions. For `$` and `@` assignments, it checks only the base object
+/// name.
+///
+/// ## Why is this bad?
+///
+/// Consistent names make code easier to read and maintain.
+///
+/// ## Example
+///
+/// ```r
+/// badName <- 1
+/// f <- function(badArg) badArg
+/// badName$member <- 1
+/// ```
+///
+/// Use instead:
+///
+/// ```r
+/// bad_name <- 1
+/// f <- function(bad_arg) bad_arg
+/// bad_name$member <- 1
+/// ```
 pub fn object_name(
     syntax: &air_r_syntax::RSyntaxNode,
     options: &ResolvedObjectNameOptions,

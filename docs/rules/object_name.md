@@ -4,13 +4,17 @@
 
 ## What it does
 
-This rule checks the names of variables and arguments introduced by assignments
+This rule checks the names of variables and arguments used in assignments
 and function definitions.
 For `$` and `@` assignments, it checks only the base object name.
 
 This rule is disabled by default.
 
 The default styles are `snake_case` and `symbols`:
+
+## Why is this bad?
+
+Consistent names make code easier to read and maintain.
 
 ## Example
 
