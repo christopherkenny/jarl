@@ -104,7 +104,7 @@ fn name_diagnostic(
     range: TextRange,
     options: &ResolvedObjectNameOptions,
 ) -> Option<Diagnostic> {
-    if options.matches(name) {
+    if options.is_special_name(name) || options.matches(name) {
         return None;
     }
 

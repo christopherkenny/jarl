@@ -291,7 +291,7 @@
         },
         "object_name": {
           "title": "Options for the `object_name` rule",
-          "description": "Use `styles` to select built-in naming styles and `regexes` to add named\nregular expressions.",
+          "description": "Use `styles` to select built-in naming styles, `regexes` to add named\nregular expressions, and `special-names` / `extend-special-names` to\nconfigure names that are exempt from style checks.",
           "anyOf": [
             {
               "$ref": "#/$defs/ObjectNameOptions"
@@ -474,15 +474,33 @@
       "additionalProperties": false
     },
     "ObjectNameOptions": {
-      "description": "TOML options for `[lint.object_name]`.\n\n`styles` selects the built-in naming styles. `regexes` adds named regular\nexpressions that can be used alongside the selected styles.",
+      "description": "TOML options for `[lint.object_name]`.\n\n`styles` selects the built-in naming styles. `regexes` adds named regular\nexpressions that can be used alongside the selected styles. `special-names`\nreplaces the built-in names that are exempt from style checks, while\n`extend-special-names` adds to them.",
       "type": "object",
       "properties": {
+        "extend-special-names": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
         "regexes": {
           "type": [
             "object",
             "null"
           ],
           "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "special-names": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
             "type": "string"
           }
         },

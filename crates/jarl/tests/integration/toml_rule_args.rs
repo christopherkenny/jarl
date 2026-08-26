@@ -549,7 +549,7 @@ unknown-option = ["snake_case"]
       |
     3 | unknown-option = ["snake_case"]
       | ^^^^^^^^^^^^^^
-    unknown field `unknown-option`, expected `styles` or `regexes`
+    unknown field `unknown-option`, expected one of `styles`, `regexes`, `special-names`, `extend-special-names`
     "#
     );
 
@@ -630,6 +630,56 @@ styles = ["CamelCase"]
       |
     2 | badName <- 1
       | ------- Variable and function name style should match `CamelCase`.
+      |
+
+
+    ── Summary ──────────────────────────────────────
+    Found 1 error.
+
+    ----- stderr -----
+    "#
+    );
+
+    Ok(())
+}
+
+#[test]
+fn test_object_name_special_names_can_be_extended() -> anyhow::Result<()> {
+    let case = CliTest::with_files([
+        (
+            "jarl.toml",
+            r#"
+[lint]
+select = ["object_name"]
+
+[lint.object_name]
+extend-special-names = ["mySpecial"]
+"#,
+        ),
+        (
+            "test.R",
+            ".onLoad <- function(...) TRUE\nmySpecial <- 1\nbadName <- 1",
+        ),
+    ])?;
+
+    insta::assert_snapshot!(
+        &mut case
+            .command()
+            .arg("check")
+            .arg(".")
+            .run()
+            .normalize_os_executable_name()
+            .normalize_temp_paths(),
+        @r#"
+
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    warning: object_name
+     --> test.R:3:1
+      |
+    3 | badName <- 1
+      | ------- Variable and function name style should match `snake_case` or `symbols`.
       |
 
 

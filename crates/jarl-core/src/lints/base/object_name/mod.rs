@@ -59,7 +59,7 @@ mod tests {
     fn supports_custom_styles_and_regexes() {
         let styles = ObjectNameOptions {
             styles: Some(vec!["CamelCase".to_string()]),
-            regexes: None,
+            ..Default::default()
         };
         assert_eq!(
             reported_names(
@@ -75,6 +75,7 @@ mod tests {
                 "prefixed".to_string(),
                 r"^x_[a-z]+$".to_string(),
             )])),
+            ..Default::default()
         };
         assert_eq!(
             reported_names(
@@ -88,5 +89,67 @@ mod tests {
     #[test]
     fn accepts_default_symbol_names() {
         assert!(check_code("%>% <- function(x) x", "object_name", None).is_empty());
+    }
+
+    #[test]
+    fn accepts_default_special_names() {
+        let code = concat!(
+            ".onLoad <- function(...) TRUE\n",
+            ".onAttach <- function(...) TRUE\n",
+            ".onUnload <- function(...) TRUE\n",
+            ".onDetach <- function(...) TRUE\n",
+            ".Last.lib <- function(...) TRUE\n",
+            ".First <- function(...) TRUE\n",
+            ".Last <- function(...) TRUE\n",
+            "badName <- 1",
+        );
+
+        assert_eq!(reported_names(code, None), ["badName"]);
+    }
+
+    #[test]
+    fn extends_special_names() {
+        let options = ObjectNameOptions {
+            extend_special_names: Some(vec!["mySpecial".to_string()]),
+            ..Default::default()
+        };
+
+        let code = ".onLoad <- function(...) TRUE\nmySpecial <- 1\nbadName <- 1";
+
+        assert_eq!(
+            reported_names(code, Some(settings_with_options(options))),
+            ["badName"]
+        );
+    }
+
+    #[test]
+    fn replaces_special_names() {
+        let options = ObjectNameOptions {
+            special_names: Some(vec!["mySpecial".to_string()]),
+            ..Default::default()
+        };
+
+        let code = ".onLoad <- function(...) TRUE\nmySpecial <- 1";
+
+        assert_eq!(
+            reported_names(code, Some(settings_with_options(options))),
+            [".onLoad"]
+        );
+    }
+
+    #[test]
+    fn rejects_both_special_name_lists() {
+        let options = ObjectNameOptions {
+            special_names: Some(vec!["mySpecial".to_string()]),
+            extend_special_names: Some(vec!["anotherSpecial".to_string()]),
+            ..Default::default()
+        };
+
+        let error = ResolvedObjectNameOptions::resolve(Some(&options)).unwrap_err();
+
+        assert_eq!(
+            error.to_string(),
+            "Cannot specify both `special-names` and `extend-special-names` in `[lint.object_name]`."
+        );
     }
 }

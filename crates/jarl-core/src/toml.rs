@@ -300,8 +300,9 @@ pub struct LinterTomlOptions {
 
     /// # Options for the `object_name` rule
     ///
-    /// Use `styles` to select built-in naming styles and `regexes` to add named
-    /// regular expressions.
+    /// Use `styles` to select built-in naming styles, `regexes` to add named
+    /// regular expressions, and `special-names` / `extend-special-names` to
+    /// configure names that are exempt from style checks.
     #[serde(rename = "object_name")]
     pub object_name: Option<ObjectNameOptions>,
 

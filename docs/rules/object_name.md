@@ -47,6 +47,20 @@ Built-in styles are `CamelCase`, `camelCase`, `snake_case`, `SNAKE_CASE`,
 `dotted.case`, `lowercase`, `UPPERCASE`, and `symbols`.
 Any combination of default styles can be included.
 
+The following special names are exempt from style checks by default:
+`.onLoad`, `.onAttach`, `.onUnload`, `.onDetach`, `.Last.lib`, `.First`, and
+`.Last`.
+Use `extend-special-names` to add project-specific special names while keeping
+the defaults:
+
+```toml
+[lint.object_name]
+extend-special-names = ["my_special_hook"]
+```
+
+Use `special-names` to replace the default set entirely. Do not specify both
+`special-names` and `extend-special-names`.
+
 Additional acceptable names can be added via `regexes` when `styles` is set:
 
 ```toml
