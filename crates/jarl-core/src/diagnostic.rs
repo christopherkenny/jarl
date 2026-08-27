@@ -1,5 +1,5 @@
 use annotate_snippets::{Level, Renderer, Snippet};
-use biome_rowan::TextRange;
+use biome_rowan::{TextRange, TextSize};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering;
 use std::path::PathBuf;
@@ -11,28 +11,50 @@ use crate::rule_set::{FixStatus, Rule};
 // The fix to apply to the violation.
 pub struct Fix {
     pub content: String,
-    pub start: usize,
-    pub end: usize,
+    // Portion of the source replaced by `content`.
+    pub range: TextRange,
     // TODO: This is used only to not add a Fix when the node contains a comment
     // because I don't know how to handle them for now, #95.
     pub to_skip: bool,
 }
 
 impl Fix {
+    /// Replace the source covered by `range` with `content`.
+    pub fn new(range: TextRange, content: String, to_skip: bool) -> Self {
+        Self { content, range, to_skip }
+    }
+
+    /// Same as [`Fix::replace`] for callers that compute byte offsets outside
+    /// of the syntax tree (e.g. from the raw source).
+    pub fn new_with_offsets(start: usize, end: usize, content: String, to_skip: bool) -> Self {
+        Self::new(
+            TextRange::new(TextSize::from(start as u32), TextSize::from(end as u32)),
+            content,
+            to_skip,
+        )
+    }
+
     pub fn empty() -> Self {
         Self {
             content: "".to_string(),
-            start: 0usize,
-            end: 0usize,
+            range: TextRange::default(),
             to_skip: true,
         }
+    }
+
+    pub fn start(&self) -> usize {
+        self.range.start().into()
+    }
+
+    pub fn end(&self) -> usize {
+        self.range.end().into()
     }
 }
 
 /// Details on the violated rule.
 pub trait Violation {
-    /// Name of the rule.
-    fn name(&self) -> String;
+    /// The violated rule.
+    fn rule(&self) -> Rule;
     /// Explanation of the rule.
     fn body(&self) -> String;
     /// Optional suggestion for how to fix the violation.
@@ -43,7 +65,9 @@ pub trait Violation {
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub struct ViolationData {
-    pub name: String,
+    // Serialized as "name" so the JSON output keeps the key it always had.
+    #[serde(rename = "name")]
+    pub rule: Rule,
     pub body: String,
     pub suggestion: Option<String>,
 }
@@ -64,7 +88,7 @@ pub struct Diagnostic {
 impl<T: Violation> From<T> for ViolationData {
     fn from(value: T) -> Self {
         Self {
-            name: Violation::name(&value),
+            rule: Violation::rule(&value),
             body: Violation::body(&value),
             suggestion: Violation::suggestion(&value),
         }
@@ -72,16 +96,8 @@ impl<T: Violation> From<T> for ViolationData {
 }
 
 impl ViolationData {
-    pub fn new(name: String, body: String, suggestion: Option<String>) -> Self {
-        Self { name, body, suggestion }
-    }
-
-    pub fn empty() -> Self {
-        Self {
-            name: "".to_string(),
-            body: "".to_string(),
-            suggestion: None,
-        }
+    pub fn new(rule: Rule, body: String, suggestion: Option<String>) -> Self {
+        Self { rule, body, suggestion }
     }
 }
 
@@ -96,41 +112,16 @@ impl Diagnostic {
         }
     }
 
-    pub fn empty() -> Self {
-        Self {
-            message: ViolationData::empty(),
-            range: TextRange::empty(0.into()),
-            location: None,
-            fix: Fix::empty(),
-            filename: "".into(),
-        }
-    }
-
     // TODO: in these three functions, the first condition should be removed
     // once comments in nodes are better handled, #95.
     pub fn has_safe_fix(&self) -> bool {
-        if self.fix.to_skip || self.fix.content.is_empty() {
-            return false;
-        }
-        Rule::from_name(&self.message.name)
-            .map(|r| r.fix_status() == FixStatus::Safe)
-            .unwrap_or(false)
+        !self.fix.to_skip && self.message.rule.fix_status() == FixStatus::Safe
     }
     pub fn has_unsafe_fix(&self) -> bool {
-        if self.fix.to_skip || self.fix.content.is_empty() {
-            return false;
-        }
-        Rule::from_name(&self.message.name)
-            .map(|r| r.fix_status() == FixStatus::Unsafe)
-            .unwrap_or(false)
+        !self.fix.to_skip && self.message.rule.fix_status() == FixStatus::Unsafe
     }
     pub fn has_no_fix(&self) -> bool {
-        if self.fix.to_skip {
-            return true;
-        }
-        Rule::from_name(&self.message.name)
-            .map(|r| r.fix_status() == FixStatus::None)
-            .unwrap_or(true)
+        self.fix.to_skip || self.message.rule.fix_status() == FixStatus::None
     }
 }
 

@@ -151,6 +151,7 @@ Let's start with a skeleton of this file:
 
 ```rust
 use crate::diagnostic::*;
+use crate::rule_set::Rule;
 use crate::utils::{get_arg_by_name_then_position, get_arg_by_position, node_contains_comments};
 use air_r_syntax::*;
 use biome_rowan::AstNode;
@@ -165,8 +166,8 @@ pub struct List2Df;
 ///
 /// [...]
 impl Violation for List2Df {
-    fn name(&self) -> String {
-        "list2df".to_string()
+    fn rule(&self) -> Rule {
+        Rule::List2df
     }
     fn body(&self) -> String {
         "`do.call(cbind.data.frame, x)` is inefficient and can be hard to read.".to_string()
@@ -185,7 +186,7 @@ Let's analyze this by blocks:
 
 * the first lines import required crates and functions, and define a struct using the rule name (in TitleCase);
 * then there is some documentation (truncated here for conciseness). The version number corresponds to the next version, not the current one.
-* the `impl` block is where we define the name and the main message (`body`) that will be used in the output of Jarl. Note that there is also a `suggestion()` function which is not always necessary.
+* the `impl` block is where we link the violation to its `Rule` variant (the one declared in `rule_set.rs`) and define the main message (`body`) that will be used in the output of Jarl. Note that there is also a `suggestion()` function which is not always necessary.
 * finally, we define the function where we parse the AST.
 
 ::: {.callout-note collapse="true"}
@@ -195,7 +196,7 @@ If you explore other rules implementation, you might notice that the `impl Viola
 This is because in some cases, the message and/or the suggestion depend on the AST itself.
 For example, for the `assignment` rule, the message will recommend the use of `<-` or `=` depending on the user settings.
 
-In this scenario, the name, body, and suggestion are defined at the very end, when we build the `Diagnostic`.
+In this scenario, the rule, body, and suggestion are defined at the very end, when we build the `Diagnostic`.
 :::
 
 
@@ -294,20 +295,19 @@ let range = ast.syntax().text_trimmed_range();
 let diagnostic = Diagnostic::new(
     List2Df,
     range,
-    Fix {
-        content: format!("list2DF({})", fix_content.to_trimmed_text()),
-        start: range.start().into(),
-        end: range.end().into(),
-        to_skip: node_contains_comments(ast.syntax()),
-    },
+    Fix::new(
+        range,
+        format!("list2DF({})", fix_content.to_trimmed_text()),
+        node_contains_comments(ast.syntax()),
+    ),
 );
 
 Ok(Some(diagnostic))
 ```
 
-All diagnostics contain a `Violation` (we defined the one for `List2Df` just below the documentation), a range indicating where it is located in the code, and a `Fix` (which may be `Fix::Empty()` if there is no automatic fix).
+All diagnostics contain a `Violation` (we defined the one for `List2Df` just below the documentation), a range indicating where it is located in the code, and `Fix::new()` (or `Fix::empty()` if there is no automatic fix).
 
-Finally, note that `Fix` has a field `to_skip: node_contains_comments(ast.syntax())`. This tells Jarl not to apply the automatic fix if the node in question contains a comment. Handling comments positions in automatic fixes is quite complicated so, for now, fixes are not applied if the node contains a comment, e.g.:
+Finally, note that `Fix::new()` has an argument `to_skip: node_contains_comments(ast.syntax())`. This tells Jarl not to apply the automatic fix if the node in question contains a comment. Handling comments positions in automatic fixes is quite complicated so, for now, fixes are not applied if the node contains a comment, e.g.:
 
 ```r
 # This code wouldn't be automatically fixed because we don't know where the
@@ -336,7 +336,74 @@ For example, one could list some functions that will not be checked by the rule 
 skipped-functions = ["list"]
 ```
 
-This adds some work and therefore will not be detailed here, but you can refer to [PR #372](https://github.com/etiennebacher/jarl/pull/372) for inspiration (it adds support for TOML arguments to the `implicit_assignment` rule).
+Not all rules need TOML options.
+
+::: {.callout-note title = "Click to see how to add TOML options for a rule" collapse = true}
+
+Adding options for a rule takes three steps. The example below uses the rule `duplicated_arguments` since `list2df` doesn't have TOML options.
+
+1. Create `src/lints/<group>/<rule_name>/options.rs` and declare `pub(crate) mod options;` in the rule's `mod.rs`. This file contains two types: the TOML options (deserialized as-is from `[lint.<rule_name>]`) and the resolved options (what the rule reads while linting). The resolved type must expose `resolve()`, which takes the TOML options and fills in the defaults:
+
+    ```rust
+    /// Default functions that are allowed to have duplicated arguments.
+    const DEFAULT_SKIPPED_FUNCTIONS: &[&str] = &["c", "mutate", "summarize", "transmute"];
+
+    #[derive(Clone, Debug, PartialEq, Eq, Default, serde::Deserialize)]
+    #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
+    #[serde(deny_unknown_fields, rename_all = "kebab-case")]
+    pub struct DuplicatedArgumentsOptions {
+        pub skipped_functions: Option<Vec<String>>,
+        pub extend_skipped_functions: Option<Vec<String>>,
+    }
+
+    #[derive(Clone, Debug)]
+    pub struct ResolvedDuplicatedArgumentsOptions {
+        pub skipped_functions: HashSet<String>,
+    }
+
+    impl ResolvedDuplicatedArgumentsOptions {
+        pub fn resolve(options: Option<&DuplicatedArgumentsOptions>) -> anyhow::Result<Self> {
+            [...]
+        }
+    }
+    ```
+
+    If the option is a list of functions that can be either replaced or extended by the user (the `<field>` / `extend-<field>` pattern), use the helper `resolve_with_extend()` from `src/rule_options.rs` instead of writing that logic again.
+
+1. Add the TOML field to `LinterTomlOptions` in `src/toml.rs`. The field must be named after the rule, and its documentation ends up in `artifacts/jarl.schema.json`, which editors use to describe the option:
+
+    ```rust
+    /// # Options for the `duplicated_arguments` rule
+    ///
+    /// Use `skipped-functions` to fully replace the default list of functions
+    /// that are allowed to have duplicated arguments. Use
+    /// `extend-skipped-functions` to add to the default list.
+    /// Specifying both is an error.
+    #[serde(rename = "duplicated_arguments")]
+    pub duplicated_arguments: Option<DuplicatedArgumentsOptions>,
+    ```
+
+1. Add one line to `declare_rule_options!` in `src/rule_options.rs`, naming the rule's folder and its resolved type:
+
+    ```rust
+    declare_rule_options! {
+        [...]
+        base::duplicated_arguments => ResolvedDuplicatedArgumentsOptions,
+        [...]
+    }
+    ```
+
+    This generates the field on `ResolvedRuleOptions`, its resolution from the TOML file, and the default value. Forgetting step 2 is a compile error.
+
+The rule can then read its options from the checker, e.g. `checker.rule_options.duplicated_arguments.skipped_functions`.
+
+Finally:
+
+* run `just gen-schema` to update `artifacts/jarl.schema.json`;
+* document the option for users in `docs/reference/config-file.md` (this page is written by hand, it is not generated from the Rust code);
+* add integration tests in `crates/jarl/tests/integration/toml_rule_args.rs`, covering invalid values, unknown fields in the rule table, and the option actually changing what is reported.
+
+:::
 
 ### Add tests
 
@@ -468,7 +535,7 @@ The rule is implemented, all tests pass, perfect!
 We now need to document this change:
 
 * update `docs/changelog.md`
-* update `docs/rules.md`
+* add or update the rule page in `docs/rules/<rule_name>.md`
 
 If you have installed `just` as [recommended](contributing.md#tools), you can now run `just document` to update the website.
 

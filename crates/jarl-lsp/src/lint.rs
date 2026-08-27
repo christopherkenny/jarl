@@ -14,13 +14,15 @@ use crate::document::PositionEncoding;
 use crate::session::DocumentSnapshot;
 use crate::utils::should_exclude_file_based_on_settings;
 
+use air_fs::relativize_path;
 use air_workspace::resolve::PathResolver;
 use jarl_core::check::get_checks;
 use jarl_core::config::{ArgsConfig, build_config};
 use jarl_core::diagnostic::Diagnostic as JarlDiagnostic;
 use jarl_core::discovery::{DiscoveredSettings, discover_settings};
-use jarl_core::fs::{has_r_extension, relativize_path};
+use jarl_core::fs::has_r_extension;
 use jarl_core::package::{is_in_r_package, make_package_analysis, summarize_package_info};
+use jarl_core::rule_set::Rule;
 use jarl_core::settings::Settings;
 
 /// Fix information that can be attached to a diagnostic for code actions
@@ -222,7 +224,7 @@ fn run_jarl_linting(
                 .unwrap_or(50);
 
             if total_unused > threshold {
-                diagnostics.retain(|d| d.message.name != "unused_function");
+                diagnostics.retain(|d| d.message.rule != Rule::UnusedFunction);
                 total_unused
             } else {
                 0
@@ -278,10 +280,10 @@ fn convert_to_lsp_diagnostic(
     // Always include fix_data even if there's no actual fix, so we can access the rule_name
     let diagnostic_fix = DiagnosticFix {
         content: jarl_diag.fix.content.clone(),
-        start: jarl_diag.fix.start,
-        end: jarl_diag.fix.end,
+        start: jarl_diag.fix.start(),
+        end: jarl_diag.fix.end(),
         is_safe: jarl_diag.has_safe_fix(),
-        rule_name: jarl_diag.message.name.clone(),
+        rule_name: jarl_diag.message.rule.name().to_string(),
         diagnostic_start: start_offset,
         diagnostic_end: end_offset,
     };
@@ -298,7 +300,9 @@ fn convert_to_lsp_diagnostic(
     let diagnostic = Diagnostic {
         range,
         severity: Some(severity),
-        code: Some(NumberOrString::String(jarl_diag.message.name.clone())),
+        code: Some(NumberOrString::String(
+            jarl_diag.message.rule.name().to_string(),
+        )),
         code_description: None,
         source: Some(DIAGNOSTIC_SOURCE.to_string()),
         message,

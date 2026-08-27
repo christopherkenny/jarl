@@ -1,4 +1,5 @@
 use crate::diagnostic::*;
+use crate::rule_set::Rule;
 use crate::utils::{get_arg_by_position, node_contains_comments};
 use crate::utils_ast::AstNodeExt;
 use air_r_syntax::*;
@@ -99,17 +100,12 @@ pub fn outer_negation(ast: &RCall) -> anyhow::Result<Option<Diagnostic>> {
     let range = ast.syntax().text_trimmed_range();
     let diagnostic = Diagnostic::new(
         ViolationData::new(
-            "outer_negation".to_string(),
+            Rule::OuterNegation,
             msg.to_string(),
             Some(suggestion.to_string()),
         ),
         range,
-        Fix {
-            content: fix,
-            start: range.start().into(),
-            end: range.end().into(),
-            to_skip: node_contains_comments(ast.syntax()),
-        },
+        Fix::new(range, fix, node_contains_comments(ast.syntax())),
     );
 
     Ok(Some(diagnostic))

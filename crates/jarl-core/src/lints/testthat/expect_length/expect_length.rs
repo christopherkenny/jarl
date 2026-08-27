@@ -1,4 +1,5 @@
 use crate::diagnostic::*;
+use crate::rule_set::Rule;
 use crate::utils::{
     Formals, get_arg, get_function_name, get_function_namespace_prefix, node_contains_comments,
 };
@@ -124,7 +125,7 @@ pub fn expect_length(ast: &RCall, fn_name: &str) -> anyhow::Result<Option<Diagno
     let range = ast.syntax().text_trimmed_range();
     let diagnostic = Diagnostic::new(
         ViolationData::new(
-            "expect_length".to_string(),
+            Rule::TestthatExpectLength,
             format!(
                 "`expect_length(x, n)` is better than `{}(length(x), n)`.",
                 fn_name
@@ -132,12 +133,11 @@ pub fn expect_length(ast: &RCall, fn_name: &str) -> anyhow::Result<Option<Diagno
             Some("Use `expect_length(x, n)` instead.".to_string()),
         ),
         range,
-        Fix {
-            content: format!("{}expect_length({}, {})", namespace_prefix, x_text, n_text),
-            start: range.start().into(),
-            end: range.end().into(),
-            to_skip: node_contains_comments(ast.syntax()),
-        },
+        Fix::new(
+            range,
+            format!("{}expect_length({}, {})", namespace_prefix, x_text, n_text),
+            node_contains_comments(ast.syntax()),
+        ),
     );
 
     Ok(Some(diagnostic))

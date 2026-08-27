@@ -1,6 +1,15 @@
 # Changelog
 
-## Development version
+## 0.6.0
+
+::: {.callout-note icon=false title="Released on 2026-08-24" .low-opacity}
+:::
+
+### Breaking changes
+
+* The JSON output produced with `--output-format json` has changed. In `fix`, the
+  fields `start` and `end` are replaced by a field `range` that contains the
+  two values (#650).
 
 ### New and improved rules
 
@@ -32,9 +41,12 @@
   * `expect_s3_class` now also reports `expect_true(is.<class>(x))`,
     `expect_true(inherits(x, class))`, and dynamic class expressions. Dynamic
     class expressions are reported without an automatic fix (#555, @Yousa-Mirage).
-  * Three more functions skipped by default from `implicit_assignment`: `expect_silent` (from
-    `testthat`), `expect_defunct` (from lifecycle) and `expect_deprecated` (from `lifecycle`)
-    (#543, @maelle).
+  * Four more functions skipped by default from `implicit_assignment`: `expect_silent()`
+    (from `testthat`), `expect_defunct()` and `expect_deprecated()` (from `lifecycle`),
+    and `try()` (#543, @maelle, #654).
+  * `outdated_suppression` now has a safe fix that removes the unused
+    suppression comment (or comments if `# jarl-ignore-start` and `# jarl-ignore-end`
+    are used) (#638).
   * `which_grepl` now supports named `which(x = ...)` arguments and native pipe
     chains such as `x |> grepl(pattern = ...) |> which()`. Calls with additional
     `which()` arguments are reported without an automatic fix (#560, @Yousa-Mirage).
@@ -78,9 +90,15 @@
 
 ### Other improvements
 
-* Jarl is now available on PyPI under the name `jarl-linter`, enabling its
-  installation via `uv`, `pipx`, and other tools (#466). It is also on `conda-forge`,
-  meaning that it can be installed via `mise` and `pixi` (@salim-b).
+* Several new ways to install Jarl:
+
+  - it is available on PyPI under the name `jarl-linter`, enabling its
+    installation via `uv`, `pipx`, and other tools (#466).
+  - it is available on `conda-forge`, enabling its installation via `mise` and
+    `pixi` (@salim-b).
+  - it is available on Homebrew, enabling its installation via `brew`.
+
+* Fixed outdated paths in the contributing guide (#658, @christopherkenny).
 
 
 ### Bug fixes
@@ -114,10 +132,26 @@
 * Fixed false positives in `assignment` rule. Jarl could recommend replacing `<-`
   by `=` in places where this would change the meaning of the code (#515).
 
-* `implicit_assignment` now includes `alist()` in the list of functions skipped
-  by default (#527).
+* `implicit_assignment` now includes `alist()`, `expect_no_condition()`,
+  `expect_no_warning()`, `expect_no_error()`, `expect_no_message()`, and
+  `expect_no_match()` in the list of functions skipped by default (#527, #639).
 
 * Jarl no longer fails to parse `...()` (#584, @Yousa-Mirage).
+
+* `redundant_equals` now skips cases that use `rlang`'s `!!` and `!!!` operators
+  (#625).
+
+* The fix for `comparison_negation` is now considered "unsafe" because it can
+  produce different output depending on operator precedence around the
+  comparison (#632).
+
+* Fix the detection of `Depends: R (>= x.y.z)` in some cases (#641).
+
+* Replace panic by a proper error if `jarl.toml` is unreadable, for instance
+  because of a permission error (#645).
+
+* Ensure the LSP has the same file selections and exclusions capabilities as the
+  CLI (#647).
 
 ## 0.5.0
 

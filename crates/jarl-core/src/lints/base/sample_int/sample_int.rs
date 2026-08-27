@@ -1,4 +1,5 @@
 use crate::diagnostic::*;
+use crate::rule_set::Rule;
 use crate::utils::{Formals, drop_arg, get_arg, node_contains_comments};
 use air_r_syntax::*;
 use biome_rowan::AstNode;
@@ -36,8 +37,8 @@ pub struct SampleInt;
 ///
 /// See `?sample`
 impl Violation for SampleInt {
-    fn name(&self) -> String {
-        "sample_int".to_string()
+    fn rule(&self) -> Rule {
+        Rule::SampleInt
     }
     fn body(&self) -> String {
         "`sample(1:n, m, ...)` is less readable than `sample.int(n, m, ...)`.".to_string()
@@ -92,12 +93,11 @@ pub fn sample_int(ast: &RCall, fn_name: &str) -> anyhow::Result<Option<Diagnosti
     let diagnostic = Diagnostic::new(
         SampleInt,
         range,
-        Fix {
-            content: format!("sample.int({inner_content})"),
-            start: range.start().into(),
-            end: range.end().into(),
-            to_skip: node_contains_comments(ast.syntax()),
-        },
+        Fix::new(
+            range,
+            format!("sample.int({inner_content})"),
+            node_contains_comments(ast.syntax()),
+        ),
     );
 
     Ok(Some(diagnostic))
