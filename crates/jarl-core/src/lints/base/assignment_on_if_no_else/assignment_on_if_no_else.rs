@@ -1,4 +1,5 @@
 use crate::diagnostic::*;
+use crate::rule_set::Rule;
 use air_r_syntax::*;
 use biome_rowan::AstNode;
 
@@ -47,8 +48,8 @@ pub struct AssignmentOnIfNoElse;
 ///
 /// If assigning a fallback value is appropriate, add a final `else` branch.
 impl Violation for AssignmentOnIfNoElse {
-    fn name(&self) -> String {
-        "assignment_on_if_no_else".to_string()
+    fn rule(&self) -> Rule {
+        Rule::AssignmentOnIfNoElse
     }
 
     fn body(&self) -> String {
