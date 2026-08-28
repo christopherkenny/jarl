@@ -582,7 +582,9 @@ fn get_checks_roxygen(
         //
         // Run before `check_document` so that suppression filtering there
         // covers these diagnostics too.
-        if checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject) {
+        if checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject)
+            || checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse)
+        {
             let semantic = oak_semantic::build_index(
                 &parsed.tree(),
                 jarl_semantic::JarlImportsResolver::with_cache(
@@ -598,12 +600,29 @@ fn get_checks_roxygen(
                 .extend(top_level_attached_packages(&semantic));
 
             let owned: Vec<RSyntaxNode> = expressions.iter().map(|e| e.syntax().clone()).collect();
-            crate::lints::base::unused_object::unused_object::unused_object(
+            let info = jarl_semantic::SemanticInfo::build(
+                &syntax,
                 &owned,
                 &semantic,
-                &std::collections::HashSet::new(),
-                &mut checker,
-            )?;
+                &checker.source_index_cache,
+                &checker.loaded_packages,
+                &checker.unevaluated_ranges,
+            );
+            if checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject) {
+                crate::lints::base::unused_object::unused_object::unused_object(
+                    &info,
+                    &semantic,
+                    &std::collections::HashSet::new(),
+                    &mut checker,
+                )?;
+            }
+            if checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse) {
+                crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else(
+                    &info,
+                    &semantic,
+                    &mut checker,
+                )?;
+            }
         }
 
         // Only run document-level checks if the examples code has inline

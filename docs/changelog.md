@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### New and improved rules
+
+* New rules:
+
+  * `assignment_on_if_no_else` (#605)
+
 ## 0.6.0
 
 ::: {.callout-note icon=false title="Released on 2026-08-24" .low-opacity}
@@ -15,7 +23,6 @@
 
 * New rules:
 
-  * `assignment_on_if_no_else` (#605)
   * `condition_call` (#503)
   * `condition_message` (#545)
   * `empty_file` (#477, @JosephBARBIERDARNAL)

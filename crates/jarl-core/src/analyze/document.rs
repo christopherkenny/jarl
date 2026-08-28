@@ -1,9 +1,11 @@
 use air_r_syntax::{RExpressionList, RSyntaxNode};
 use biome_rowan::{AstNode, AstNodeList};
+use jarl_semantic::SemanticInfo;
 use oak_semantic::semantic_index::SemanticIndex;
 
 use crate::checker::Checker;
 use crate::diagnostic::*;
+use crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else;
 use crate::lints::base::empty_file::empty_file::empty_file;
 use crate::lints::base::unreachable_code::unreachable_code::unreachable_code_top_level;
 use crate::lints::base::unused_object::unused_object::unused_object;
@@ -39,11 +41,29 @@ pub(crate) fn check_document(
         }
     }
 
-    // Check for unused local objects via the semantic index.
-    if checker.is_rule_enabled(Rule::UnusedObject)
-        && let Some(semantic) = semantic
+    // Semantic lints. `SemanticInfo` walks the whole tree and indexes every
+    // `source()` target, so it is built once and shared.
+    if let Some(semantic) = semantic
+        && (checker.is_rule_enabled(Rule::UnusedObject)
+            || checker.is_rule_enabled(Rule::AssignmentOnIfNoElse))
     {
-        unused_object(&expressions, semantic, &package.cross_file_used, checker)?;
+        let info = SemanticInfo::build(
+            syntax,
+            &expressions,
+            semantic,
+            &checker.source_index_cache,
+            &checker.loaded_packages,
+            &checker.unevaluated_ranges,
+        );
+        if checker.is_rule_enabled(Rule::UnusedObject) {
+            unused_object(&info, semantic, &package.cross_file_used, checker)?;
+        }
+        // No export or cross-file guard here, unlike `unused_object`: with two
+        // successive top-level bindings of a name, another file only ever sees
+        // the last one, so a read elsewhere cannot keep the first one alive.
+        if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse) {
+            assignment_on_if_no_else(&info, semantic, checker)?;
+        }
     }
 
     // --- Comment/suppression checks ---
