@@ -611,7 +611,7 @@ fn get_checks_roxygen(
             let owned: Vec<RSyntaxNode> = expressions.iter().map(|e| e.syntax().clone()).collect();
             crate::lints::base::unused_object::unused_object::unused_object(
                 &owned,
-                &semantic,
+                semantic,
                 &std::collections::HashSet::new(),
                 &mut checker,
             )?;

@@ -36,7 +36,7 @@ use crate::settings::Settings;
 #[derive(Debug)]
 pub enum ParseTomlError {
     Read(PathBuf, io::Error),
-    Deserialize(PathBuf, toml::de::Error),
+    Deserialize(PathBuf, Box<toml::de::Error>),
 }
 
 impl std::error::Error for ParseTomlError {}
@@ -59,7 +59,8 @@ impl Display for ParseTomlError {
 pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
     let toml =
         fs::read_to_string(path).map_err(|err| ParseTomlError::Read(path.to_path_buf(), err))?;
-    toml::from_str(&toml).map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))
+    toml::from_str(&toml)
+        .map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), Box::new(err)))
 }
 
 #[derive(Clone, Debug, Default, serde::Deserialize)]
