@@ -2,6 +2,7 @@ use crate::diagnostic::*;
 use crate::rule_set::Rule;
 use air_r_syntax::*;
 use biome_rowan::AstNode;
+use jarl_semantic::{SemanticInfo, assignment_lhs_name};
 
 pub struct AssignmentOnIfNoElse;
 
@@ -10,7 +11,8 @@ pub struct AssignmentOnIfNoElse;
 /// ## What it does
 ///
 /// Flags assignments whose value is an `if` expression without a final `else`
-/// branch, including an `else if` chain whose final `if` has no `else`.
+/// branch, including an `else if` chain whose final `if` has no `else`, when
+/// the assignment overwrites an earlier value.
 ///
 /// ## Why is this bad?
 ///
@@ -21,10 +23,12 @@ pub struct AssignmentOnIfNoElse;
 /// ## Example
 ///
 /// ```r
+/// df <- data.frame()
 /// df <- if (condition) {
 ///   data.frame()
 /// }
 ///
+/// value <- 1
 /// value <- if (a) {
 ///   1
 /// } else if (b) {
@@ -62,7 +66,18 @@ impl Violation for AssignmentOnIfNoElse {
     }
 }
 
-pub fn assignment_on_if_no_else(ast: &RBinaryExpression) -> anyhow::Result<Option<Diagnostic>> {
+pub fn assignment_on_if_no_else(
+    ast: &RBinaryExpression,
+    semantic: &SemanticInfo<'_>,
+) -> anyhow::Result<Option<Diagnostic>> {
+    let Some(name) = assignment_lhs_name(ast.syntax()) else {
+        return Ok(None);
+    };
+
+    if !semantic.has_unused_assignment_before(&name, ast.syntax().text_trimmed_range()) {
+        return Ok(None);
+    }
+
     let operator = ast.operator()?;
     let value = match operator.kind() {
         RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => ast.right()?,
