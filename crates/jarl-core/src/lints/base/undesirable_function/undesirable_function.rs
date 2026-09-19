@@ -63,6 +63,7 @@ impl Violation for UndesirableFunction {
 pub fn undesirable_function(
     ast: &RCall,
     fn_name: &str,
+    ns_prefix: Option<&str>,
     checker: &Checker,
 ) -> anyhow::Result<Option<Diagnostic>> {
     if !checker
@@ -77,7 +78,7 @@ pub fn undesirable_function(
     let range = ast.syntax().text_trimmed_range();
     let diagnostic = Diagnostic::new(
         UndesirableFunction {
-            fn_name: fn_name.to_string(),
+            fn_name: format!("{}{}", ns_prefix.unwrap_or_default(), fn_name),
             message: checker
                 .rule_options
                 .undesirable_function

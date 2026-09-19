@@ -67,7 +67,7 @@ mod tests {
          --> <test>:1:1
           |
         1 | utils::browser()
-          | ---------------- `browser()` is listed as an undesirable function.
+          | ---------------- `utils::browser()` is listed as an undesirable function.
           |
         Found 1 error.
         "
