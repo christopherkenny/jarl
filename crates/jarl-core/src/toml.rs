@@ -68,6 +68,12 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
     let toml =
         fs::read_to_string(path).map_err(|err| ParseTomlError::Read(path.to_path_buf(), err))?;
 
+    // Rule options are sub-tables (`[lint.assignment]`), so a `[lint]` key set
+    // to anything else can only be an unknown option. Catch those before
+    // deserializing, otherwise a known rule name (`assignment = "<-"`) reports
+    // a type mismatch instead of the "Unknown field" message every other
+    // unknown option gets. A malformed file is left to the deserializer, which
+    // reports the syntax error with its position.
     if let Ok(table) = toml.parse::<toml::Table>()
         && let Some(field) = unknown_lint_field(&table)
     {

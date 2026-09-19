@@ -33,6 +33,7 @@ pub(crate) fn check_document(
     // --- Document-level analysis ---
 
     let expressions: Vec<RSyntaxNode> = expressions.iter().map(|e| e.syntax().clone()).collect();
+    let unevaluated_ranges = checker.unevaluated_ranges();
 
     let semantic_info = semantic
         .filter(|_| checker.is_rule_enabled(Rule::AssignmentOnIfNoElse))
@@ -45,7 +46,7 @@ pub(crate) fn check_document(
                 semantic,
                 &checker.source_index_cache,
                 &checker.loaded_packages,
-                &checker.unevaluated_ranges,
+                &unevaluated_ranges,
             ))
         });
 
