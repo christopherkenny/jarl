@@ -466,9 +466,9 @@ and its suggestion is shown alongside the default diagnostic body.
 
 [lint.undesirable_function]
 extend-functions = [
-  { setwd = 'Use here::here().' },
+  { setwd = 'Use `here::here()`.' },
   "sprintf",
-  { transmute = 'Use mutate(.keep = "none").' },
+  { transmute = 'Use `mutate(.keep = "none")`.' },
 ]
 ```
 

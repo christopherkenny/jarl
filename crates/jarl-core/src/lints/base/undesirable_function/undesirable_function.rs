@@ -33,9 +33,9 @@ pub struct UndesirableFunction {
 ///
 /// # Or add to the defaults, with optional suggestions:
 /// extend-functions = [
-///   { setwd = 'Use here::here().' },
+///   { setwd = 'Use `here::here()`.' },
 ///   "sprintf",
-///   { transmute = 'Use mutate(.keep = "none").' },
+///   { transmute = 'Use `mutate(.keep = "none")`.' },
 /// ]
 /// ```
 ///

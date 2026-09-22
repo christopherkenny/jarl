@@ -167,7 +167,8 @@
   symbols (#542).
 
 * `undesirable_function` now accepts inline tables in `functions` and
-  `extend-functions` to attach custom suggestions to undesirable functions.
+  `extend-functions` to attach custom suggestions to undesirable functions
+  (#726).
 
 
 ### Other improvements
