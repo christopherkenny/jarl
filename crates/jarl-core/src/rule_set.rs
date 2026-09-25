@@ -463,6 +463,13 @@ declare_rules! {
         fix: Safe,
         min_r_version: None,
     },
+    LibraryCall => {
+        name: "library_call",
+        categories: [Read],
+        default: Disabled,
+        fix: Unsafe,
+        min_r_version: None,
+    },
     List2df => {
         name: "list2df",
         categories: [Perf, Read],

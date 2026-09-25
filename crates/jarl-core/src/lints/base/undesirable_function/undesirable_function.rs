@@ -9,6 +9,7 @@ pub struct UndesirableFunction {
     pub message: Option<String>,
 }
 
+/// <!-- docs: start -->
 /// Version added: 0.5.0
 ///
 /// ## What it does
@@ -39,6 +40,9 @@ pub struct UndesirableFunction {
 /// ]
 /// ```
 ///
+/// Names can be qualified with a package, such as `base::setwd`; qualified
+/// names only match calls with the same package prefix.
+///
 /// ## Example
 ///
 /// ```r
@@ -48,6 +52,7 @@ pub struct UndesirableFunction {
 ///    xyz
 /// }
 /// ```
+/// <!-- docs: end -->
 impl Violation for UndesirableFunction {
     fn rule(&self) -> Rule {
         Rule::UndesirableFunction

@@ -19,11 +19,30 @@ pub enum UndesirableFunctionEntry {
 
 /// TOML options for `[lint.undesirable_function]`.
 ///
+/// <!-- docs: start -->
 /// Use `functions` to fully replace the default list of undesirable functions.
 /// Use `extend-functions` to add to the default list.
 /// Entries can be strings or inline tables mapping a function to a custom
 /// suggestion.
 /// Specifying both is an error.
+///
+/// ### Default values
+///
+/// ```toml
+/// functions = ["browser"]
+/// ```
+///
+/// ### TOML settings
+///
+/// ```toml
+/// [lint.undesirable_function]
+/// # Replace the default list entirely:
+/// functions = ["browser", "debug"]
+///
+/// # Or add to the defaults:
+/// extend-functions = ["debug"]
+/// ```
+/// <!-- docs: end -->
 #[derive(Clone, Debug, PartialEq, Default, serde::Deserialize)]
 #[cfg_attr(feature = "schemars", derive(schemars::JsonSchema))]
 #[serde(deny_unknown_fields, rename_all = "kebab-case")]
