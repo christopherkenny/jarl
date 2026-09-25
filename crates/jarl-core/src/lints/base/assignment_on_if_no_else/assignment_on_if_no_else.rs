@@ -6,7 +6,7 @@ use jarl_semantic::{SemanticInfo, assignment_lhs_name};
 
 pub struct AssignmentOnIfNoElse;
 
-/// Version added: 0.6.0
+/// Version added: 0.7.0
 ///
 /// ## What it does
 ///
@@ -23,12 +23,16 @@ pub struct AssignmentOnIfNoElse;
 /// ## Example
 ///
 /// ```r
-/// df <- data.frame()
+/// df <- mtcars
+/// # If `condition` is `FALSE`, `df` becomes `NULL` instead of
+/// # keeping its original value.
 /// df <- if (condition) {
-///   data.frame()
+///   mtcars[1:5, ]
 /// }
 ///
 /// value <- 1
+/// # If neither `a` nor `b` is `TRUE`, `value` becomes `NULL`
+/// # instead of keeping its original value.
 /// value <- if (a) {
 ///   1
 /// } else if (b) {

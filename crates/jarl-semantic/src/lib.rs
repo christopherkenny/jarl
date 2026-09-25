@@ -280,7 +280,7 @@ impl<'a> SemanticInfo<'a> {
     /// later assignment which silently overwrites a value the author may have
     /// expected to keep using.
     pub fn has_unused_assignment_before(&self, name: &str, range: TextRange) -> bool {
-        let Some((scope, current_id, current)) = self.index.scope_ids().find_map(|scope| {
+        let Some((scope, current_id)) = self.index.scope_ids().find_map(|scope| {
             self.index
                 .definitions(scope)
                 .iter()
@@ -288,24 +288,30 @@ impl<'a> SemanticInfo<'a> {
                     self.definition_syntax_range(def) == Some(range)
                         && self.index.symbols(scope).symbol(def.symbol()).name() == name
                 })
-                .map(|(id, def)| (scope, id, def))
+                .map(|(id, _)| (scope, id))
         }) else {
             return false;
         };
 
-        self.index.definitions(scope).iter().any(|(def_id, def)| {
-            def_id != current_id
-                && def.symbol() == current.symbol()
-                && def.range().start() < range.start()
-                && matches!(
-                    def.kind(),
-                    DefinitionKind::Assignment(_)
-                        | DefinitionKind::SuperAssignment(_)
-                        | DefinitionKind::Assign { .. }
-                )
-                && !self.is_in_nse(def.range())
-                && !self.is_definition_used(scope, def_id)
-                && self.assignment_reaches(range, def.range())
+        self.index.ancestor_scope_ids(scope).any(|owner| {
+            let Some(symbol_id) = self.index.symbols(owner).id(name) else {
+                return false;
+            };
+
+            self.index.definitions(owner).iter().any(|(def_id, def)| {
+                !(owner == scope && def_id == current_id)
+                    && def.symbol() == symbol_id
+                    && def.range().start() < range.start()
+                    && matches!(
+                        def.kind(),
+                        DefinitionKind::Assignment(_)
+                            | DefinitionKind::SuperAssignment(_)
+                            | DefinitionKind::Assign { .. }
+                    )
+                    && !self.is_in_nse(def.range())
+                    && !self.is_definition_used(owner, def_id)
+                    && self.assignment_reaches(range, def.range())
+            })
         })
     }
 

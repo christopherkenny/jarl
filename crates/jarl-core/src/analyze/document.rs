@@ -35,9 +35,8 @@ pub(crate) fn check_document(
     let expressions: Vec<RSyntaxNode> = expressions.iter().map(|e| e.syntax().clone()).collect();
     let unevaluated_ranges = checker.unevaluated_ranges();
 
-    let semantic_info = semantic
-        .filter(|_| checker.is_rule_enabled(Rule::AssignmentOnIfNoElse))
-        .and_then(|semantic| {
+    if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse)
+        && let Some(info) = semantic.and_then(|semantic| {
             let first = expressions.first()?;
             let root = first.ancestors().last().unwrap_or_else(|| first.clone());
             Some(SemanticInfo::build(
@@ -48,7 +47,16 @@ pub(crate) fn check_document(
                 &checker.loaded_packages,
                 &unevaluated_ranges,
             ))
-        });
+        })
+    {
+        for expression in &expressions {
+            for node in expression.descendants() {
+                if let Some(binary) = node.cast::<RBinaryExpression>() {
+                    checker.report_diagnostic(assignment_on_if_no_else(&binary, &info)?);
+                }
+            }
+        }
+    }
 
     // Check for unreachable code at top level
     if checker.is_rule_enabled(Rule::UnreachableCode) {
@@ -62,18 +70,6 @@ pub(crate) fn check_document(
         && let Some(semantic) = semantic
     {
         unused_object(&expressions, semantic, &package.cross_file_used, checker)?;
-    }
-
-    if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse)
-        && let Some(info) = semantic_info.as_ref()
-    {
-        for expression in &expressions {
-            for node in expression.descendants() {
-                if let Some(binary) = node.cast::<RBinaryExpression>() {
-                    checker.report_diagnostic(assignment_on_if_no_else(&binary, info)?);
-                }
-            }
-        }
     }
 
     // --- Comment/suppression checks ---

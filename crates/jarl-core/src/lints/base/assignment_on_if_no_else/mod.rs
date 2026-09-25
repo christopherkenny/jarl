@@ -100,4 +100,24 @@ mod tests {
         );
         expect_no_lint("if (a) { value <- 1 }", "assignment_on_if_no_else", None);
     }
+
+    #[test]
+    fn test_assignment_on_if_no_else_across_scopes() {
+        for code in [
+            "df <- 1\nfoo <- function() {\n  df <- if (cond) { data.frame() }\n  df\n}",
+            "bar <- function() {\n  df <- 1\n  foo <- function() {\n    df <- if (cond) { data.frame() }\n    df\n  }\n}",
+        ] {
+            assert_eq!(
+                check_code(code, "assignment_on_if_no_else", None).len(),
+                1,
+                "Expected a diagnostic for {code}"
+            );
+        }
+
+        expect_no_lint(
+            "foo <- function() {\n  df <- 1\n  df\n}\ndf <- if (cond) { data.frame() }",
+            "assignment_on_if_no_else",
+            None,
+        );
+    }
 }
