@@ -108,10 +108,20 @@ fn add_messages(
 }
 
 fn validate_function_name(function: &str) -> anyhow::Result<()> {
+    if function.is_empty() {
+        anyhow::bail!("Function name cannot be empty in `[lint.undesirable_function]`.");
+    }
+    if function.trim() != function {
+        anyhow::bail!(
+            "Function name `{function}` cannot have leading or trailing whitespace in `[lint.undesirable_function]`."
+        );
+    }
     let (package, name) = match function.split_once("::") {
         Some((package, name)) if !name.contains("::") => (Some(package), name),
         Some(_) => {
-            anyhow::bail!("Invalid function name `{function}` in `[lint.undesirable_function]`.")
+            anyhow::bail!(
+                "Function name `{function}` can contain at most one `::` in `[lint.undesirable_function]`."
+            )
         }
         None => (None, function),
     };
@@ -153,7 +163,7 @@ fn validate_function_name(function: &str) -> anyhow::Result<()> {
         || package.is_some_and(|package| !valid_identifier(package))
     {
         anyhow::bail!(
-            "Invalid function name `{function}` in `[lint.undesirable_function]`. Expected `name` or `package::name`."
+            "Function name `{function}` must be a valid R identifier or use the form `package::name` in `[lint.undesirable_function]`."
         );
     }
     Ok(())

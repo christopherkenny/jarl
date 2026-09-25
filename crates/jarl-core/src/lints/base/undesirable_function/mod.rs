@@ -191,16 +191,39 @@ mod tests {
 
     #[test]
     fn test_invalid_custom_function_entries_are_rejected() {
-        for config in [
-            "extend-functions = [{ 1 = 'Use here::here().' }]",
-            "extend-functions = [{ true = 'Use here::here().' }]",
-            "extend-functions = [{ setwd = 1 }]",
-            "extend-functions = [{ setwd = true }]",
-            "extend-functions = [{ \"\" = true }]",
-            "extend-functions = [{ \"  setwd  \" = true }]",
+        for (config, message) in [
+            (
+                "extend-functions = [{ 1 = 'Use here::here().' }]",
+                "Function name `1` must be a valid R identifier or use the form `package::name` in `[lint.undesirable_function]`.",
+            ),
+            (
+                "extend-functions = [{ true = 'Use here::here().' }]",
+                "Function name `true` must be a valid R identifier or use the form `package::name` in `[lint.undesirable_function]`.",
+            ),
+            (
+                "extend-functions = [{ setwd = 1 }]",
+                "Suggestion for `setwd` in `[lint.undesirable_function]` must be a string.",
+            ),
+            (
+                "extend-functions = [{ setwd = true }]",
+                "Suggestion for `setwd` in `[lint.undesirable_function]` must be a string.",
+            ),
+            (
+                "extend-functions = [{ \"\" = true }]",
+                "Function name cannot be empty in `[lint.undesirable_function]`.",
+            ),
+            (
+                "extend-functions = [{ \"  setwd  \" = true }]",
+                "Function name `  setwd  ` cannot have leading or trailing whitespace in `[lint.undesirable_function]`.",
+            ),
         ] {
             let options: UndesirableFunctionOptions = toml::from_str(config).unwrap();
-            assert!(ResolvedUndesirableFunctionOptions::resolve(Some(&options)).is_err());
+            assert_eq!(
+                ResolvedUndesirableFunctionOptions::resolve(Some(&options))
+                    .unwrap_err()
+                    .to_string(),
+                message
+            );
         }
     }
 }
