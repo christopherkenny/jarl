@@ -178,4 +178,29 @@ mod tests {
         "#
         );
     }
+
+    #[test]
+    fn test_namespaced_function_matches_exactly() {
+        let options: UndesirableFunctionOptions =
+            toml::from_str(r#"extend-functions = [{ "base::setwd" = "Use here::here()." }]"#)
+                .unwrap();
+        let settings = settings_with_options(options);
+        expect_no_lint_with_settings("setwd()", "undesirable_function", None, settings.clone());
+        assert!(snapshot_lint_with_settings("base::setwd()", settings).contains("base::setwd()"));
+    }
+
+    #[test]
+    fn test_invalid_custom_function_entries_are_rejected() {
+        for config in [
+            "extend-functions = [{ 1 = 'Use here::here().' }]",
+            "extend-functions = [{ true = 'Use here::here().' }]",
+            "extend-functions = [{ setwd = 1 }]",
+            "extend-functions = [{ setwd = true }]",
+            "extend-functions = [{ \"\" = true }]",
+            "extend-functions = [{ \"  setwd  \" = true }]",
+        ] {
+            let options: UndesirableFunctionOptions = toml::from_str(config).unwrap();
+            assert!(ResolvedUndesirableFunctionOptions::resolve(Some(&options)).is_err());
+        }
+    }
 }

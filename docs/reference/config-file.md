@@ -458,7 +458,9 @@ contains `browser`.
 
 Entries can be function-name strings or inline tables mapping function names to
 custom suggestion text. A mapped function is included in the selected list,
-and its suggestion is shown alongside the default diagnostic body.
+and its suggestion is shown alongside the default diagnostic body. Names can be
+qualified with a package, such as `base::setwd` and will only match calls with
+the same package prefix.
 
 ```toml
 [lint]

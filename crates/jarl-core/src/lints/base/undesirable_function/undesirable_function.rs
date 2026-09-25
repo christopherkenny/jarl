@@ -66,24 +66,28 @@ pub fn undesirable_function(
     ns_prefix: Option<&str>,
     checker: &Checker,
 ) -> anyhow::Result<Option<Diagnostic>> {
-    if !checker
-        .rule_options
-        .undesirable_function
-        .functions
-        .contains(fn_name)
-    {
+    let full_name = format!("{}{}", ns_prefix.unwrap_or_default(), fn_name);
+    let functions = &checker.rule_options.undesirable_function.functions;
+    if !functions.contains(&full_name) && !(ns_prefix.is_some() && functions.contains(fn_name)) {
         return Ok(None);
     }
 
     let range = ast.syntax().text_trimmed_range();
     let diagnostic = Diagnostic::new(
         UndesirableFunction {
-            fn_name: format!("{}{}", ns_prefix.unwrap_or_default(), fn_name),
+            fn_name: full_name.clone(),
             message: checker
                 .rule_options
                 .undesirable_function
                 .messages
-                .get(fn_name)
+                .get(&full_name)
+                .or_else(|| {
+                    checker
+                        .rule_options
+                        .undesirable_function
+                        .messages
+                        .get(fn_name)
+                })
                 .cloned(),
         },
         range,
