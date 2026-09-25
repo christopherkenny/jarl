@@ -15,7 +15,16 @@
   "fix": { "edits": [ { "range": [0, 13], "content": "anyNA(x)" } ], "to_skip": false }
   ```
 
+### Deprecations
+
+* The `internal_function` rule is deprecated. Use `undesirable_operator` instead.
+
 ### Changes
+
+* New rules:
+
+  * `library_call` (#701)
+  * `undesirable_operator` (#657, @christopherkenny)
 
 * The config file can be named `.jarl.toml` as well as `jarl.toml`. Both names
   are equivalent, and a directory containing both is now an error instead of
@@ -23,6 +32,10 @@
 
 * `expect_length` no longer reports cases where `length()` is in the `expected`
   argument, e.g. `expect_equal(nrow(x), length(y))` (#684).
+
+* The `nzchar` rule now also reports comparisons of `nchar(x)` with zero, such
+  as `nchar(x) == 0`, and its fixes preserve missing values with
+  `keepNA = TRUE` (#705, @Yousa-Mirage).
 
 * Only use placeholder text in messages and suggestions (#722).
 
@@ -32,6 +45,9 @@
   cannot be applied because the violation is in part of `@examples` (#702).
 
 ### Bug fixes
+
+* Prevent `unused_function` and `unused_object` from falsely reporting non-ASCII
+  names (#706, @Yousa-Mirage).
 
 * Handle uppercase `.RMD`/`.QMD` extensions (and any other letter-case variant)
   files consistently (#709, @Yousa-Mirage).

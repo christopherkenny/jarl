@@ -6,6 +6,7 @@ use crate::checker::Checker;
 use crate::diagnostic::*;
 use crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else;
 use crate::lints::base::empty_file::empty_file::empty_file;
+use crate::lints::base::library_call::library_call::library_call;
 use crate::lints::base::unreachable_code::unreachable_code::unreachable_code_top_level;
 use crate::lints::base::unused_object::unused_object::unused_object;
 use crate::lints::comments::blanket_suppression::blanket_suppression::blanket_suppression;
@@ -170,6 +171,16 @@ pub(crate) fn check_document(
 
     if checker.is_rule_enabled(Rule::EmptyFile) {
         checker.report_diagnostic(empty_file(&expressions, syntax));
+    }
+
+    // It is frequent to call `library()` after the first chunk in Rmd/Qmd
+    // (ecosystem checks) so skip these files.
+    if checker.is_rule_enabled(Rule::LibraryCall)
+        && !crate::fs::has_rmd_extension(&checker.file_path)
+    {
+        for diagnostic in library_call(&expressions, contents) {
+            checker.report_diagnostic(Some(diagnostic));
+        }
     }
 
     // Filter diagnostics by suppressions. This removes suppressed violations
