@@ -6,6 +6,7 @@ use jarl_semantic::{SemanticInfo, assignment_lhs_name};
 
 pub struct AssignmentOnIfNoElse;
 
+/// <!-- docs: start -->
 /// Version added: 0.7.0
 ///
 /// ## What it does
@@ -44,7 +45,7 @@ pub struct AssignmentOnIfNoElse;
 ///
 /// ```r
 /// if (condition) {
-///   df <- data.frame()
+///   df <- mtcars[1:5, ]
 /// }
 ///
 /// if (a) {
@@ -55,6 +56,7 @@ pub struct AssignmentOnIfNoElse;
 /// ```
 ///
 /// If assigning a fallback value is appropriate, add a final `else` branch.
+/// <!-- docs: end -->
 impl Violation for AssignmentOnIfNoElse {
     fn rule(&self) -> Rule {
         Rule::AssignmentOnIfNoElse
@@ -74,14 +76,6 @@ pub fn assignment_on_if_no_else(
     ast: &RBinaryExpression,
     semantic: &SemanticInfo<'_>,
 ) -> anyhow::Result<Option<Diagnostic>> {
-    let Some(name) = assignment_lhs_name(ast.syntax()) else {
-        return Ok(None);
-    };
-
-    if !semantic.has_unused_assignment_before(&name, ast.syntax().text_trimmed_range()) {
-        return Ok(None);
-    }
-
     let operator = ast.operator()?;
     let value = match operator.kind() {
         RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => ast.right()?,
@@ -97,7 +91,15 @@ pub fn assignment_on_if_no_else(
         return Ok(None);
     }
 
+    let Some(name) = assignment_lhs_name(ast.syntax()) else {
+        return Ok(None);
+    };
+
     let range = ast.syntax().text_trimmed_range();
+    if !semantic.has_unused_assignment_before(&name, range) {
+        return Ok(None);
+    }
+
     Ok(Some(Diagnostic::new(
         AssignmentOnIfNoElse,
         range,

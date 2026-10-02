@@ -1,4 +1,5 @@
 # assignment_on_if_no_else
+
 ::: {.callout-note title="Added in 0.7.0" .low-opacity}
 :::
 
@@ -38,7 +39,7 @@ Use instead:
 
 ```r
 if (condition) {
-  df <- data.frame()
+  df <- mtcars[1:5, ]
 }
 
 if (a) {
