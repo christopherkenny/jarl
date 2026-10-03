@@ -879,7 +879,7 @@ extend-functions = [{ 1 = 'Use here::here().' }]
     ----- stderr -----
     jarl failed
       Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
-    Function name `1` in `[lint.undesirable_function]` must be quoted. Use `"1" = 'suggestion'`.
+    Key `1` in `extend-functions` of `[lint.undesirable_function]` must be quoted. Use `"1"` instead.
     "#
     );
 
@@ -916,7 +916,7 @@ extend-functions = [{ true = 'Use here::here().' }]
     ----- stderr -----
     jarl failed
       Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
-    Function name `true` in `[lint.undesirable_function]` must be quoted. Use `"true" = 'suggestion'`.
+    Key `true` in `extend-functions` of `[lint.undesirable_function]` must be quoted. Use `"true"` instead.
     "#
     );
 
@@ -953,7 +953,7 @@ extend-functions = [{ setwd = 'Use here::here().' }]
     ----- stderr -----
     jarl failed
       Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
-    Function name `setwd` in `[lint.undesirable_function]` must be quoted. Use `"setwd" = 'suggestion'`.
+    Key `setwd` in `extend-functions` of `[lint.undesirable_function]` must be quoted. Use `"setwd"` instead.
     "#
     );
 
@@ -990,7 +990,7 @@ functions = [{ setwd = 'Use here::here().' }]
     ----- stderr -----
     jarl failed
       Cause: Invalid configuration in [TEMP_DIR]/jarl.toml:
-    Function name `setwd` in `[lint.undesirable_function]` must be quoted. Use `"setwd" = 'suggestion'`.
+    Key `setwd` in `functions` of `[lint.undesirable_function]` must be quoted. Use `"setwd"` instead.
     "#
     );
 

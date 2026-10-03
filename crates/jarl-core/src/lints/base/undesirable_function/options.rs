@@ -140,40 +140,6 @@ fn validate_message<'a>(function: &str, message: &'a toml::Value) -> anyhow::Res
     Ok(message)
 }
 
-pub(crate) fn validate_quoted_function_names(source: &str) -> anyhow::Result<()> {
-    let document = source.parse::<toml_edit::DocumentMut>()?;
-    let Some(options) = document
-        .get("lint")
-        .and_then(|lint| lint.get("undesirable_function"))
-    else {
-        return Ok(());
-    };
-
-    for option in ["functions", "extend-functions"] {
-        let Some(entries) = options.get(option).and_then(toml_edit::Item::as_array) else {
-            continue;
-        };
-        for entry in entries {
-            let Some(table) = entry.as_inline_table() else {
-                continue;
-            };
-            for (name, _) in table {
-                let quoted = table
-                    .key(name)
-                    .and_then(toml_edit::Key::as_repr)
-                    .and_then(|repr| repr.as_raw().as_str())
-                    .is_some_and(|repr| repr.starts_with(['"', '\'']));
-                if !quoted {
-                    anyhow::bail!(
-                        "Function name `{name}` in `[lint.undesirable_function]` must be quoted. Use `\"{name}\" = 'suggestion'`."
-                    );
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
 fn validate_function_name(function: &str) -> anyhow::Result<()> {
     if function.is_empty() {
         anyhow::bail!("Function name cannot be empty in `[lint.undesirable_function]`.");

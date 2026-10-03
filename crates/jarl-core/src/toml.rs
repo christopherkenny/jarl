@@ -87,11 +87,53 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
     let options = toml::from_str(&toml)
         .map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))?;
 
-    // We need to run this here because serde loses the information on Whether a
+    // We need to run this here because serde loses the information on whether a
     // key was quoted later.
-    crate::lints::base::undesirable_function::options::validate_quoted_function_names(&toml)
-        .map_err(|err| ParseTomlError::Invalid(path.to_path_buf(), err.to_string()))?;
+    if let Ok(document) = toml.parse::<toml_edit::DocumentMut>()
+        && let Some(message) = unquoted_key(&document)
+    {
+        return Err(ParseTomlError::Invalid(path.to_path_buf(), message));
+    }
+
     Ok(options)
+}
+
+/// `[lint.<rule>]` options holding inline tables whose keys must be quoted,
+/// as `(rule, options)` pairs.
+const QUOTED_KEY_OPTIONS: &[(&str, &[&str])] =
+    &[("undesirable_function", &["functions", "extend-functions"])];
+
+/// Find an unquoted key in an inline table listed in [QUOTED_KEY_OPTIONS] and
+/// return the error message for it.
+fn unquoted_key(document: &toml_edit::DocumentMut) -> Option<String> {
+    let lint = document.get("lint")?;
+
+    for (rule, options) in QUOTED_KEY_OPTIONS {
+        let Some(rule_options) = lint.get(rule) else {
+            continue;
+        };
+        for option in *options {
+            let Some(entries) = rule_options.get(option).and_then(toml_edit::Item::as_array) else {
+                continue;
+            };
+            for table in entries.iter().filter_map(toml_edit::Value::as_inline_table) {
+                for (key, _) in table {
+                    let quoted = table
+                        .key(key)
+                        .and_then(toml_edit::Key::as_repr)
+                        .and_then(|repr| repr.as_raw().as_str())
+                        .is_some_and(|repr| repr.starts_with(['"', '\'']));
+                    if !quoted {
+                        return Some(format!(
+                            "Key `{key}` in `{option}` of `[lint.{rule}]` must be quoted. Use `\"{key}\"` instead."
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    None
 }
 
 /// The primary `[lint]` options, i.e. everything but the per-rule sub-tables.
