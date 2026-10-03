@@ -86,6 +86,9 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
 
     let options = toml::from_str(&toml)
         .map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))?;
+
+    // We need to run this here because serde loses the information on Whether a
+    // key was quoted later.
     crate::lints::base::undesirable_function::options::validate_quoted_function_names(&toml)
         .map_err(|err| ParseTomlError::Invalid(path.to_path_buf(), err.to_string()))?;
     Ok(options)
