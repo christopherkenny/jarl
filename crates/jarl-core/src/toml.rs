@@ -87,8 +87,8 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
     let options = toml::from_str(&toml)
         .map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))?;
 
-    // We need to run this here because serde loses the information on whether a
-    // key was quoted later.
+    // We need to run this here because then serde loses the information on
+    // whether a key was quoted.
     if let Ok(document) = toml.parse::<toml_edit::DocumentMut>()
         && let Some(message) = unquoted_key(&document)
     {
