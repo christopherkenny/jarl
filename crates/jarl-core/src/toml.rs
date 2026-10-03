@@ -84,7 +84,11 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
         ));
     }
 
-    toml::from_str(&toml).map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))
+    let options = toml::from_str(&toml)
+        .map_err(|err| ParseTomlError::Deserialize(path.to_path_buf(), err))?;
+    crate::lints::base::undesirable_function::options::validate_quoted_function_names(&toml)
+        .map_err(|err| ParseTomlError::Invalid(path.to_path_buf(), err.to_string()))?;
+    Ok(options)
 }
 
 /// The primary `[lint]` options, i.e. everything but the per-rule sub-tables.

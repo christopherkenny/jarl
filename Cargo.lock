@@ -1091,6 +1091,7 @@ dependencies = [
  "strsim",
  "tempfile",
  "toml",
+ "toml_edit",
  "tracing",
  "url",
  "workspace",

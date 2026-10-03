@@ -34,13 +34,14 @@ pub struct UndesirableFunction {
 ///
 /// # Or add to the defaults, with optional suggestions:
 /// extend-functions = [
-///   { setwd = 'Use `here::here()`.' },
+///   { "setwd" = 'Use `here::here()`.' },
 ///   "sprintf",
-///   { transmute = 'Use `mutate(.keep = "none")`.' },
+///   { "transmute" = 'Use `mutate(.keep = "none")`.' },
 /// ]
 /// ```
 ///
-/// Names can be qualified with a package, such as `base::setwd`; qualified
+/// Function names in inline tables must be quoted.
+/// Names can be qualified with a package, such as `base::setwd`. Qualified
 /// names only match calls with the same package prefix.
 ///
 /// ## Example

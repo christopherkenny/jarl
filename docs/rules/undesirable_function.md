@@ -36,16 +36,17 @@ functions = ["browser", "debug"]
 
 # Or add to the defaults, with optional suggestions:
 extend-functions = [
-  { setwd = 'Use `here::here()`.' },
+  { "setwd" = 'Use `here::here()`.' },
   "sprintf",
-  { transmute = 'Use `mutate(.keep = "none")`.' },
+  { "transmute" = 'Use `mutate(.keep = "none")`.' },
 ]
 ```
 
 Use a string with just the function name for the default diagnostic. Use an
 inline table to attach custom suggestion text to the default message.
 
-Names can be qualified with a package, such as `base::setwd`; qualified names
+Function names in inline tables must be quoted.
+Names can be qualified with a package, such as `base::setwd`. Qualified names
 only match calls with the same package prefix.
 
 ## Example
