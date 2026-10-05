@@ -47,7 +47,7 @@
 ### TOML improvements
 
 * `undesirable_operator` now accepts inline tables in `operators` and
-  `extend-operators` to attach custom messages to undesirable operators.
+  `extend-operators` to attach custom messages to undesirable operators (#742).
 
 ### Bug fixes
 
