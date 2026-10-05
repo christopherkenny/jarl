@@ -732,15 +732,17 @@ extend-operators = [
       = help: Use `[[` for extraction.
 
     warning: undesirable_operator
-     --> test.R:3:4
+     --> test.R:3:3
       |
     3 | x <<- 1
-      |    --- `<<-` is listed as an undesirable operator.
+      |   --- `<<-` is listed as an undesirable operator.
       |
 
 
     ── Summary ──────────────────────────────────────
     Found 3 errors.
+
+    ----- stderr -----
     "#
     );
 
@@ -797,6 +799,8 @@ operators = [
 
     ── Summary ──────────────────────────────────────
     Found 2 errors.
+
+    ----- stderr -----
     "#
     );
 

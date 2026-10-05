@@ -100,11 +100,10 @@ pub fn parse_jarl_toml(path: &Path) -> Result<TomlOptions, ParseTomlError> {
 
 /// `[lint.<rule>]` options holding inline tables whose keys must be quoted,
 /// as `(rule, options)` pairs.
-const QUOTED_KEY_OPTIONS: &[(&str, &[&str])] =
-    &[
-        ("undesirable_function", &["functions", "extend-functions"]),
-        ("undesirable_operator", &["operators", "extend-operators"]),
-    ];
+const QUOTED_KEY_OPTIONS: &[(&str, &[&str])] = &[
+    ("undesirable_function", &["functions", "extend-functions"]),
+    ("undesirable_operator", &["operators", "extend-operators"]),
+];
 
 /// Find an unquoted key in an inline table listed in [QUOTED_KEY_OPTIONS] and
 /// return the error message for it.
