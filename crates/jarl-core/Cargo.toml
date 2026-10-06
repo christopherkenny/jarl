@@ -39,6 +39,7 @@ jarl-semantic.workspace = true
 # Serialization and data structures
 serde.workspace = true
 toml.workspace = true
+toml_edit.workspace = true
 rustc-hash.workspace = true
 strsim.workspace = true
 
