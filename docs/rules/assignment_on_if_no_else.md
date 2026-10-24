@@ -1,39 +1,33 @@
 # assignment_on_if_no_else
+
 ::: {.callout-note title="Added in 0.7.0" .low-opacity}
 :::
 
 ## What it does
 
-Flags an assignment whose value is an `if` expression without a final
-`else` branch, when it overwrites a value that was assigned earlier and
-never used.
+Flags assignments whose value is an `if` expression without a final `else`
+branch, including an `else if` chain whose final `if` has no `else`, when
+the assignment overwrites an earlier value.
 
 ## Why is this bad?
 
-When no branch is taken, an `if` expression without a final `else`
-evaluates to `NULL`. Assigning that result silently discards the previous
-value, which is usually a bug: the earlier assignment reads like a fallback
-but never acts as one.
-
-```r
-x <- 1
-x <- if (foo) y
-```
-
-Here `x` is `NULL` when `foo` is `FALSE`, not `1`.
-
-Writing `x <- if (foo) y` on its own is not reported: with nothing to
-overwrite, `NULL` is usually the intended result.
+When no branch is taken, an `if` expression without a final `else` evaluates
+to `NULL`. Assigning that result can unexpectedly overwrite an existing
+value.
 
 ## Example
 
 ```r
-df <- data.frame()
+df <- mtcars
+# If `condition` is `FALSE`, `df` becomes `NULL` instead of
+# keeping its original value.
 df <- if (condition) {
-  read_data()
+  mtcars[1:5, ]
 }
 
-value <- 0
+value <- 1
+# If neither `a` nor `b` is `TRUE`, `value` becomes `NULL`
+# instead of keeping its original value.
 value <- if (a) {
   1
 } else if (b) {
@@ -44,22 +38,15 @@ value <- if (a) {
 Use instead:
 
 ```r
-df <- data.frame()
 if (condition) {
-  df <- read_data()
+  df <- mtcars[1:5, ]
 }
 
-value <- if (a) {
-  1
+if (a) {
+  value <- 1
 } else if (b) {
-  2
-} else {
-  0
+  value <- 2
 }
 ```
 
-## Limitations
-
-Super-assignment (`x <<- if (a) 1`, `if (a) 1 ->> x`) is not checked: it
-binds in an enclosing environment, where whether the overwritten value was
-used cannot be determined reliably.
+If assigning a fallback value is appropriate, add a final `else` branch.

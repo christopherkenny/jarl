@@ -151,18 +151,6 @@ pub fn unused_object(
     cross_file_used: &std::collections::HashSet<String>,
     checker: &mut Checker,
 ) -> anyhow::Result<()> {
-    let Some(first) = expressions.first() else {
-        return Ok(());
-    };
-    let root = first.ancestors().last().unwrap_or_else(|| first.clone());
-    let info = SemanticInfo::build(
-        &root,
-        expressions,
-        semantic,
-        &checker.source_index_cache,
-        &checker.packages_in_reach(),
-        &checker.unevaluated_ranges(),
-    );
     let exports = &checker.namespace_exports;
     let skipped = &checker.rule_options.unused_object.skipped_functions;
 

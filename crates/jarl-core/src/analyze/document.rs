@@ -1,6 +1,5 @@
-use air_r_syntax::{AnyRExpression, RSyntaxNode};
-use biome_rowan::{AstNode, AstNodeList};
-use jarl_semantic::SemanticInfo;
+use air_r_syntax::{AnyRExpression, RBinaryExpression, RSyntaxNode};
+use biome_rowan::{AstNode, SyntaxNodeCast};
 use oak_semantic::semantic_index::SemanticIndex;
 
 use crate::checker::Checker;
@@ -22,6 +21,7 @@ use crate::lints::comments::unmatched_range_suppression::unmatched_range_suppres
 };
 use crate::package::PackageFileAnalysis;
 use crate::rule_set::Rule;
+use jarl_semantic::SemanticInfo;
 
 pub(crate) fn check_document(
     expressions: &[AnyRExpression],
@@ -53,17 +53,20 @@ pub(crate) fn check_document(
             &expressions,
             semantic,
             &checker.source_index_cache,
-            &checker.loaded_packages,
-            &checker.unevaluated_ranges,
+            &checker.packages_in_reach(),
+            &checker.unevaluated_ranges(),
         );
         if checker.is_rule_enabled(Rule::UnusedObject) {
             unused_object(&info, semantic, &package.cross_file_used, checker)?;
         }
-        // No export or cross-file guard here, unlike `unused_object`: with two
-        // successive top-level bindings of a name, another file only ever sees
-        // the last one, so a read elsewhere cannot keep the first one alive.
         if checker.is_rule_enabled(Rule::AssignmentOnIfNoElse) {
-            assignment_on_if_no_else(&info, semantic, checker)?;
+            for expression in &expressions {
+                for node in expression.descendants() {
+                    if let Some(binary) = node.cast::<RBinaryExpression>() {
+                        checker.report_diagnostic(assignment_on_if_no_else(&binary, &info)?);
+                    }
+                }
+            }
         }
     }
 

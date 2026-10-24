@@ -1,47 +1,39 @@
-use air_r_syntax::*;
-use biome_rowan::AstNode;
-use oak_semantic::semantic_index::{DefinitionKind, SemanticIndex};
-
-use jarl_semantic::{SemanticInfo, assignment_lhs_is_complex};
-
-use crate::checker::Checker;
 use crate::diagnostic::*;
 use crate::rule_set::Rule;
+use air_r_syntax::*;
+use biome_rowan::AstNode;
+use jarl_semantic::{SemanticInfo, assignment_lhs_name};
 
+pub struct AssignmentOnIfNoElse;
+
+/// <!-- docs: start -->
 /// Version added: 0.7.0
 ///
 /// ## What it does
 ///
-/// Flags an assignment whose value is an `if` expression without a final
-/// `else` branch, when it overwrites a value that was assigned earlier and
-/// never used.
+/// Flags assignments whose value is an `if` expression without a final `else`
+/// branch, including an `else if` chain whose final `if` has no `else`, when
+/// the assignment overwrites an earlier value.
 ///
 /// ## Why is this bad?
 ///
-/// When no branch is taken, an `if` expression without a final `else`
-/// evaluates to `NULL`. Assigning that result silently discards the previous
-/// value, which is usually a bug: the earlier assignment reads like a fallback
-/// but never acts as one.
-///
-/// ```r
-/// x <- 1
-/// x <- if (foo) y
-/// ```
-///
-/// Here `x` is `NULL` when `foo` is `FALSE`, not `1`.
-///
-/// Writing `x <- if (foo) y` on its own is not reported: with nothing to
-/// overwrite, `NULL` is usually the intended result.
+/// When no branch is taken, an `if` expression without a final `else` evaluates
+/// to `NULL`. Assigning that result can unexpectedly overwrite an existing
+/// value.
 ///
 /// ## Example
 ///
 /// ```r
-/// df <- data.frame()
+/// df <- mtcars
+/// # If `condition` is `FALSE`, `df` becomes `NULL` instead of
+/// # keeping its original value.
 /// df <- if (condition) {
-///   read_data()
+///   mtcars[1:5, ]
 /// }
 ///
-/// value <- 0
+/// value <- 1
+/// # If neither `a` nor `b` is `TRUE`, `value` becomes `NULL`
+/// # instead of keeping its original value.
 /// value <- if (a) {
 ///   1
 /// } else if (b) {
@@ -52,115 +44,67 @@ use crate::rule_set::Rule;
 /// Use instead:
 ///
 /// ```r
-/// df <- data.frame()
 /// if (condition) {
-///   df <- read_data()
+///   df <- mtcars[1:5, ]
 /// }
 ///
-/// value <- if (a) {
-///   1
+/// if (a) {
+///   value <- 1
 /// } else if (b) {
-///   2
-/// } else {
-///   0
+///   value <- 2
 /// }
 /// ```
 ///
-/// ## Limitations
-///
-/// Super-assignment (`x <<- if (a) 1`, `if (a) 1 ->> x`) is not checked: it
-/// binds in an enclosing environment, where whether the overwritten value was
-/// used cannot be determined reliably.
-pub fn assignment_on_if_no_else(
-    info: &SemanticInfo<'_>,
-    semantic: &SemanticIndex,
-    checker: &mut Checker,
-) -> anyhow::Result<()> {
-    let mut diagnostics = Vec::new();
-
-    for scope_id in info.scope_ids() {
-        let definitions = semantic.definitions(scope_id);
-        for (def_id, def) in definitions.iter() {
-            let DefinitionKind::Assignment(ptr) = def.kind() else {
-                continue;
-            };
-            if info.is_in_nse(def.range()) || info.is_in_formula(def.range()) {
-                continue;
-            }
-            let assignment = ptr.to_node(info.root());
-            if !assigns_if_without_else(&assignment)? {
-                continue;
-            }
-
-            // Every earlier binding of this name in this scope: the values
-            // this assignment can overwrite. Restricting to the same scope is
-            // what makes `x <- 1` outside a function irrelevant to a
-            // `x <- if (a) y` inside it, which creates a fresh local instead.
-            let mut overwrites_anything = false;
-            let mut all_unused = true;
-            for (previous_id, previous) in definitions.iter() {
-                if previous_id == def_id
-                    || previous.symbol() != def.symbol()
-                    || previous.range().start() >= def.range().start()
-                    || info.is_in_nse(previous.range())
-                {
-                    continue;
-                }
-                overwrites_anything = true;
-                if info.is_definition_used(scope_id, previous_id) {
-                    all_unused = false;
-                    break;
-                }
-            }
-            if !overwrites_anything || !all_unused {
-                continue;
-            }
-
-            let name = semantic.symbols(scope_id).symbol(def.symbol()).name();
-            diagnostics.push(Diagnostic::new(
-                ViolationData::new(
-                    Rule::AssignmentOnIfNoElse,
-                    format!(
-                        "Object `{name}` was assigned before and never used. This assignment \
-                         overwrites it with `NULL` when no `if` branch is taken."
-                    ),
-                    Some(
-                        "Move the assignment into the `if` branches or add a final `else` branch."
-                            .to_string(),
-                    ),
-                ),
-                assignment.syntax().text_trimmed_range(),
-                Fix::empty(),
-            ));
-        }
+/// If assigning a fallback value is appropriate, add a final `else` branch.
+/// <!-- docs: end -->
+impl Violation for AssignmentOnIfNoElse {
+    fn rule(&self) -> Rule {
+        Rule::AssignmentOnIfNoElse
     }
 
-    for diagnostic in diagnostics {
-        checker.report_diagnostic(Some(diagnostic));
+    fn body(&self) -> String {
+        "This assignment can overwrite the previous value with `NULL` when no `if` branch is taken."
+            .to_string()
     }
 
-    Ok(())
+    fn suggestion(&self) -> Option<String> {
+        Some("Move the assignment into the `if` branches or add a final `else` branch.".to_string())
+    }
 }
 
-/// Whether `assignment` is a plain binding whose value is an `if` expression
-/// with no final `else`.
-fn assigns_if_without_else(assignment: &RBinaryExpression) -> anyhow::Result<bool> {
-    let operator = assignment.operator()?;
-    // Super-assignment binds in an enclosing environment, see "Limitations".
+pub fn assignment_on_if_no_else(
+    ast: &RBinaryExpression,
+    semantic: &SemanticInfo<'_>,
+) -> anyhow::Result<Option<Diagnostic>> {
+    let operator = ast.operator()?;
     let value = match operator.kind() {
-        RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL => assignment.right()?,
-        RSyntaxKind::ASSIGN_RIGHT => assignment.left()?,
-        _ => return Ok(false),
+        RSyntaxKind::ASSIGN | RSyntaxKind::EQUAL | RSyntaxKind::SUPER_ASSIGN => ast.right()?,
+        RSyntaxKind::ASSIGN_RIGHT | RSyntaxKind::SUPER_ASSIGN_RIGHT => ast.left()?,
+        _ => return Ok(None),
     };
-    // `names(x) <-` or `x[1] <-` read the current value before replacing part
-    // of it, so nothing is overwritten wholesale.
-    if assignment_lhs_is_complex(assignment) {
-        return Ok(false);
-    }
+
     let Some(if_statement) = as_if_statement(value)? else {
-        return Ok(false);
+        return Ok(None);
     };
-    has_no_final_else(&if_statement)
+
+    if !has_no_final_else(&if_statement)? {
+        return Ok(None);
+    }
+
+    let Some(name) = assignment_lhs_name(ast.syntax()) else {
+        return Ok(None);
+    };
+
+    let range = ast.syntax().text_trimmed_range();
+    if !semantic.has_unused_assignment_before(&name, range) {
+        return Ok(None);
+    }
+
+    Ok(Some(Diagnostic::new(
+        AssignmentOnIfNoElse,
+        range,
+        Fix::empty(),
+    )))
 }
 
 fn as_if_statement(expression: AnyRExpression) -> anyhow::Result<Option<RIfStatement>> {
