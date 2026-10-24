@@ -727,9 +727,7 @@ fn get_checks_roxygen(
             check_expression(expr, &mut checker)?;
         }
 
-        let needs_semantic = checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject)
-            || checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse);
-        let semantic = needs_semantic.then(|| {
+        let semantic = checker.requires_semantic_analysis().then(|| {
             oak_semantic::build_index(
                 &parsed.tree(),
                 jarl_semantic::JarlImportsResolver::with_cache(

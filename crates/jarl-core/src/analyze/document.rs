@@ -45,8 +45,7 @@ pub(crate) fn check_document(
     // Semantic lints. `SemanticInfo` walks the whole tree and indexes every
     // `source()` target, so it is built once and shared.
     if let Some(semantic) = semantic
-        && (checker.is_rule_enabled(Rule::UnusedObject)
-            || checker.is_rule_enabled(Rule::AssignmentOnIfNoElse))
+        && checker.requires_semantic_analysis()
     {
         let info = SemanticInfo::build(
             syntax,
