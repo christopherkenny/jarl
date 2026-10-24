@@ -12,12 +12,15 @@ mod tests {
     #[test]
     fn test_lint_assignment_on_if_no_else() {
         assert_snapshot!(
-            snapshot_lint("df <- 1\ndf <- if (cond) { data.frame() }"),
+            snapshot_lint("
+df <- 1
+df <- if (cond) { data.frame() }
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | df <- if (cond) { data.frame() }
+        3 | df <- if (cond) { data.frame() }
           | -------------------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -25,12 +28,15 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("value <- 1\nvalue <- if (a) { 1 } else if (b) { 2 }"),
+            snapshot_lint("
+value <- 1
+value <- if (a) { 1 } else if (b) { 2 }
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | value <- if (a) { 1 } else if (b) { 2 }
+        3 | value <- if (a) { 1 } else if (b) { 2 }
           | --------------------------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -65,12 +71,16 @@ mod tests {
     #[test]
     fn test_assignment_on_if_no_else_overwrites_used_value() {
         assert_snapshot!(
-            snapshot_lint("value <- 1\nprint(value)\nvalue <- if (a) 1"),
+            snapshot_lint("
+value <- 1
+print(value)
+value <- if (a) 1
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:3:1
+         --> <test>:4:1
           |
-        3 | value <- if (a) 1
+        4 | value <- if (a) 1
           | ----------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -82,12 +92,15 @@ mod tests {
     #[test]
     fn test_assignment_on_if_no_else_supports_assignment_forms() {
         assert_snapshot!(
-            snapshot_lint("value <- 1\nvalue = if (a) 1"),
+            snapshot_lint("
+value <- 1
+value = if (a) 1
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | value = if (a) 1
+        3 | value = if (a) 1
           | ---------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -95,12 +108,15 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("value <- 1\nvalue <<- if (a) 1"),
+            snapshot_lint("
+value <- 1
+value <<- if (a) 1
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | value <<- if (a) 1
+        3 | value <<- if (a) 1
           | ------------------ This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -108,12 +124,15 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("value <- 1\n(if (a) 1) -> value"),
+            snapshot_lint("
+value <- 1
+(if (a) 1) -> value
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | (if (a) 1) -> value
+        3 | (if (a) 1) -> value
           | ------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -121,12 +140,15 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("value <- 1\n(if (a) 1) ->> value"),
+            snapshot_lint("
+value <- 1
+(if (a) 1) ->> value
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | (if (a) 1) ->> value
+        3 | (if (a) 1) ->> value
           | -------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -134,12 +156,15 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("value <- 1\nvalue <- (if (a) 1)"),
+            snapshot_lint("
+value <- 1
+value <- (if (a) 1)
+"),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:2:1
+         --> <test>:3:1
           |
-        2 | value <- (if (a) 1)
+        3 | value <- (if (a) 1)
           | ------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -161,12 +186,18 @@ mod tests {
     #[test]
     fn test_assignment_on_if_no_else_across_scopes() {
         assert_snapshot!(
-            snapshot_lint("df <- 1\nfoo <- function() {\n  df <- if (cond) { data.frame() }\n  df\n}"),
+            snapshot_lint("
+df <- 1
+foo <- function() {
+  df <- if (cond) { data.frame() }
+  df
+}
+  "),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:3:3
+         --> <test>:4:3
           |
-        3 |   df <- if (cond) { data.frame() }
+        4 |   df <- if (cond) { data.frame() }
           |   -------------------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -174,12 +205,20 @@ mod tests {
         "
         );
         assert_snapshot!(
-            snapshot_lint("bar <- function() {\n  df <- 1\n  foo <- function() {\n    df <- if (cond) { data.frame() }\n    df\n  }\n}"),
+            snapshot_lint("
+bar <- function() {
+  df <- 1
+  foo <- function() {
+    df <- if (cond) { data.frame() }
+    df
+  }
+}
+  "),
             @"
         warning: assignment_on_if_no_else
-         --> <test>:4:5
+         --> <test>:5:5
           |
-        4 |     df <- if (cond) { data.frame() }
+        5 |     df <- if (cond) { data.frame() }
           |     -------------------------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
           |
           = help: Move the assignment into the `if` branches or add a final `else` branch.
@@ -188,7 +227,11 @@ mod tests {
         );
 
         expect_no_lint(
-            "foo <- function() {\n  df <- 1\n  df\n}\ndf <- if (cond) { data.frame() }",
+            "foo <- function() {
+  df <- 1
+  df
+}
+df <- if (cond) { data.frame() }",
             "assignment_on_if_no_else",
             None,
         );
