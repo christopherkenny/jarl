@@ -10,9 +10,9 @@ use crate::utils::StatementsExt;
 use crate::vcs::check_version_control;
 use air_fs::relativize_path;
 use air_r_parser::RParserOptions;
-use air_r_syntax::RSyntaxNode;
+use air_r_syntax::{RBinaryExpression, RSyntaxNode};
 use anyhow::{Context, Result};
-use biome_rowan::{AstNode, TextRange, TextSize};
+use biome_rowan::{AstNode, SyntaxNodeCast, TextRange, TextSize};
 use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
@@ -751,13 +751,9 @@ fn get_checks_roxygen(
         // it binds can be exported or read by another file, which is why
         // `namespace_exports` and `cross_file_used` stay empty here.
         //
-        // Run before `check_document` when it is not already covered by the
-        // semantic document pass, so suppression filtering there covers these
-        // diagnostics too.
-        if checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject)
-            && !checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse)
-            && let Some(semantic) = semantic.as_ref()
-        {
+        // Run before `check_document` so that suppression filtering there
+        // covers these diagnostics too.
+        if let Some(semantic) = semantic.as_ref() {
             let owned: Vec<RSyntaxNode> = expressions.iter().map(|e| e.syntax().clone()).collect();
             let info = jarl_semantic::SemanticInfo::build(
                 &syntax,
@@ -767,19 +763,34 @@ fn get_checks_roxygen(
                 &checker.packages_in_reach(),
                 &checker.unevaluated_ranges(),
             );
-            crate::lints::base::unused_object::unused_object::unused_object(
-                &info,
-                semantic,
-                &std::collections::HashSet::new(),
-                &mut checker,
-            )?;
+            if checker.is_rule_enabled(crate::rule_set::Rule::UnusedObject) {
+                crate::lints::base::unused_object::unused_object::unused_object(
+                    &info,
+                    semantic,
+                    &std::collections::HashSet::new(),
+                    &mut checker,
+                )?;
+            }
+            if checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse) {
+                for expression in &owned {
+                    for node in expression.descendants() {
+                        if let Some(binary) = node.cast::<RBinaryExpression>() {
+                            checker.report_diagnostic(
+                                crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else(
+                                    &binary, &info,
+                                )?,
+                            );
+                        }
+                    }
+                }
+            }
         }
 
-        // The incomplete-if rule is document-level because it needs semantic
-        // information. Other document-level checks are only needed here when
-        // the example contains inline suppression comments.
-        if has_suppressions || checker.is_rule_enabled(crate::rule_set::Rule::AssignmentOnIfNoElse)
-        {
+        // Only run document-level checks if the examples code has inline
+        // suppression comments. Most examples don't, and check_document is
+        // otherwise unnecessary here (no package-level analysis, no
+        // suppression-related diagnostics to report).
+        if has_suppressions {
             check_document(
                 expressions,
                 &syntax,
