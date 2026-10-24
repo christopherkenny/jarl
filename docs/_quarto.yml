@@ -86,8 +86,8 @@ website:
             - rules/all_equal.md
             - rules/any_duplicated.md
             - rules/any_is_na.md
-            - rules/assignment.md
             - rules/assignment_on_if_no_else.md
+            - rules/assignment.md
             - rules/blanket_suppression.md
             - rules/class_equals.md
             - rules/coalesce.md
