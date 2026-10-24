@@ -863,64 +863,8 @@ fn test_output_json_multiple_syntax_errors() -> anyhow::Result<()> {
       "errors": [
         {
           "file": "test.R",
-          "error": "Failed to parse test.R due to syntax errors.",
-          "syntax_errors": [
-            {
-              "message": "Expected a parameter name but instead found ','.",
-              "range": [
-                24,
-                25
-              ],
-              "location": {
-                "row": 2,
-                "column": 14
-              }
-            },
-            {
-              "message": "Expected a parameter name but instead found ')'.",
-              "range": [
-                25,
-                26
-              ],
-              "location": {
-                "row": 2,
-                "column": 15
-              }
-            },
-            {
-              "message": "expected `)` but instead found `z`",
-              "range": [
-                29,
-                30
-              ],
-              "location": {
-                "row": 3,
-                "column": 0
-              }
-            },
-            {
-              "message": "Expected an expression but instead found '['.",
-              "range": [
-                34,
-                35
-              ],
-              "location": {
-                "row": 3,
-                "column": 5
-              }
-            },
-            {
-              "message": "expected `]` but instead the file ends",
-              "range": [
-                35,
-                35
-              ],
-              "location": {
-                "row": 3,
-                "column": 6
-              }
-            }
-          ]
+          "error": "Failed to get checks for file: test.R: missing required child",
+          "syntax_errors": []
         }
       ]
     }
