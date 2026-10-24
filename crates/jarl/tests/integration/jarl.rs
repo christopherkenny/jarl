@@ -98,7 +98,12 @@ fn test_parsing_error() -> anyhow::Result<()> {
     ----- stdout -----
 
     ----- stderr -----
-    Error: Failed to get checks for file: test.R
+    error: Expected an expression but instead found the end of the file.
+     --> test.R:1:5
+      |
+    1 | f <-
+      |     ^
+      |
     "
     );
 
@@ -135,7 +140,12 @@ fn test_parsing_error_for_some_files() -> anyhow::Result<()> {
     1 fixable with the `--fix` option.
 
     ----- stderr -----
-    Error: Failed to get checks for file: test.R
+    error: Expected an expression but instead found the end of the file.
+     --> test.R:1:5
+      |
+    1 | f <-
+      |     ^
+      |
     "
     );
 
@@ -158,9 +168,25 @@ fn test_parsing_error_with_valid_code_in_same_file() -> anyhow::Result<()> {
     success: false
     exit_code: 255
     ----- stdout -----
+    warning: any_is_na
+     --> test.R:1:1
+      |
+    1 | any(is.na(x))
+      | ------------- `any(is.na(...))` is inefficient.
+      |
+      = help: Use `anyNA(...)` instead.
+
+
+    ── Summary ──────────────────────────────────────
+    Found 1 error.
 
     ----- stderr -----
-    Error: Failed to get checks for file: test.R
+    error: Expected an expression but instead found the end of the file.
+     --> test.R:2:5
+      |
+    2 | f <-
+      |     ^
+      |
     "
     );
 
