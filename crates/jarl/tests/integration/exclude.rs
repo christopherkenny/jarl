@@ -244,7 +244,7 @@ fn test_exclude_cli_arg_no_value() -> anyhow::Result<()> {
     ----- stderr -----
     error: equal sign is needed when assigning values to '--exclude=<FILES>'
 
-    Usage: jarl check [OPTIONS] <FILES>...
+    Usage: jarl check [OPTIONS] [FILES]...
 
     For more information, try '--help'.
     "
@@ -268,7 +268,7 @@ fn test_exclude_cli_arg_no_value() -> anyhow::Result<()> {
     ----- stderr -----
     error: equal sign is needed when assigning values to '--exclude=<FILES>'
 
-    Usage: jarl check [OPTIONS] <FILES>...
+    Usage: jarl check [OPTIONS] [FILES]...
 
     For more information, try '--help'.
     "
@@ -453,7 +453,7 @@ fn test_cli_exclude_glob_patterns() -> anyhow::Result<()> {
             .arg("--exclude=R/*.R")
             .run()
             .normalize_os_executable_name(),
-        @r"
+        @"
 
     success: false
     exit_code: 1

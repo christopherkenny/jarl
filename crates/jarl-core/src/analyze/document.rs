@@ -1,4 +1,4 @@
-use air_r_syntax::{RExpressionList, RSyntaxNode};
+use air_r_syntax::{AnyRExpression, RSyntaxNode};
 use biome_rowan::{AstNode, AstNodeList};
 use jarl_semantic::SemanticInfo;
 use oak_semantic::semantic_index::SemanticIndex;
@@ -7,6 +7,7 @@ use crate::checker::Checker;
 use crate::diagnostic::*;
 use crate::lints::base::assignment_on_if_no_else::assignment_on_if_no_else::assignment_on_if_no_else;
 use crate::lints::base::empty_file::empty_file::empty_file;
+use crate::lints::base::library_call::library_call::library_call;
 use crate::lints::base::unreachable_code::unreachable_code::unreachable_code_top_level;
 use crate::lints::base::unused_object::unused_object::unused_object;
 use crate::lints::comments::blanket_suppression::blanket_suppression::blanket_suppression;
@@ -23,7 +24,7 @@ use crate::package::PackageFileAnalysis;
 use crate::rule_set::Rule;
 
 pub(crate) fn check_document(
-    expressions: &RExpressionList,
+    expressions: &[AnyRExpression],
     syntax: &RSyntaxNode,
     contents: &str,
     checker: &mut Checker,
@@ -153,7 +154,7 @@ pub(crate) fn check_document(
             checker.report_diagnostic(Some(Diagnostic::new(
                 ViolationData::new(
                     Rule::UnusedFunction,
-                    format!("`{name}` is defined but never called in this package."),
+                    format!("`{name}` is defined but is never called in this package nor is it exported in NAMESPACE."),
                     Some(help.clone()),
                 ),
                 *range,
@@ -164,6 +165,16 @@ pub(crate) fn check_document(
 
     if checker.is_rule_enabled(Rule::EmptyFile) {
         checker.report_diagnostic(empty_file(&expressions, syntax));
+    }
+
+    // It is frequent to call `library()` after the first chunk in Rmd/Qmd
+    // (ecosystem checks) so skip these files.
+    if checker.is_rule_enabled(Rule::LibraryCall)
+        && !crate::fs::has_rmd_extension(&checker.file_path)
+    {
+        for diagnostic in library_call(&expressions, contents) {
+            checker.report_diagnostic(Some(diagnostic));
+        }
     }
 
     // Filter diagnostics by suppressions. This removes suppressed violations
