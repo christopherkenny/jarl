@@ -275,11 +275,11 @@ impl<'a> SemanticInfo<'a> {
         self.reaching_used.contains(&(scope_id, def_id))
     }
 
-    /// True when an assignment before `range` defines `name`, is reachable at
-    /// `range`, and is never used. This is useful for rules that diagnose a
+    /// True when an assignment before `range` defines `name` and is reachable at
+    /// `range`, whether or not it is read in between. This is useful for rules that diagnose a
     /// later assignment which silently overwrites a value the author may have
     /// expected to keep using.
-    pub fn has_unused_assignment_before(&self, name: &str, range: TextRange) -> bool {
+    pub fn has_assignment_before(&self, name: &str, range: TextRange) -> bool {
         let Some((scope, current_id)) = self.index.scope_ids().find_map(|scope| {
             self.index
                 .definitions(scope)
@@ -309,7 +309,6 @@ impl<'a> SemanticInfo<'a> {
                             | DefinitionKind::Assign { .. }
                     )
                     && !self.is_in_nse(def.range())
-                    && !self.is_definition_used(owner, def_id)
                     && self.assignment_reaches(range, def.range())
             })
         })

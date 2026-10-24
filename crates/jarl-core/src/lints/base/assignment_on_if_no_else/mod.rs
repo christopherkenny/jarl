@@ -48,11 +48,6 @@ mod tests {
         );
         expect_no_lint("value <- if (a) 1", "assignment_on_if_no_else", None);
         expect_no_lint(
-            "value <- 1\nprint(value)\nvalue <- if (a) 1",
-            "assignment_on_if_no_else",
-            None,
-        );
-        expect_no_lint(
             "if (condition) value <- 1 else value <- if (a) 1",
             "assignment_on_if_no_else",
             None,
@@ -65,6 +60,23 @@ mod tests {
         expect_no_lint("value <- 1", "assignment_on_if_no_else", None);
         expect_no_lint("if (a) value <- 1", "assignment_on_if_no_else", None);
         expect_no_lint("fn(value = if (a) { 1 })", "assignment_on_if_no_else", None);
+    }
+
+    #[test]
+    fn test_assignment_on_if_no_else_overwrites_used_value() {
+        assert_snapshot!(
+            snapshot_lint("value <- 1\nprint(value)\nvalue <- if (a) 1"),
+            @"
+        warning: assignment_on_if_no_else
+         --> <test>:3:1
+          |
+        3 | value <- if (a) 1
+          | ----------------- This assignment can overwrite the previous value with `NULL` when no `if` branch is taken.
+          |
+          = help: Move the assignment into the `if` branches or add a final `else` branch.
+        Found 1 error.
+        "
+        );
     }
 
     #[test]

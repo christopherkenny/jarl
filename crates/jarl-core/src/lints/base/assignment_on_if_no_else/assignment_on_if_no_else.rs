@@ -96,7 +96,7 @@ pub fn assignment_on_if_no_else(
     };
 
     let range = ast.syntax().text_trimmed_range();
-    if !semantic.has_unused_assignment_before(&name, range) {
+    if !semantic.has_assignment_before(&name, range) {
         return Ok(None);
     }
 
